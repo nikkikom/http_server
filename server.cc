@@ -58,7 +58,13 @@ int main ()
     // второй аргумент = обработчик запроса.
     .on_request (
       my_path (),
-      [] () { std::cout << "FOUND\n"; }
+
+      // обработчик запросов. получает метод и разобранный запрос. 
+      // по умолчанию получает std::iostream (или совместимую) структуру.
+      [] (::http::method method, auto const& parsed, std::iostream& io) { 
+      	std::cout << "FOUND\n"; 
+      	io << "200 OK\r\n";
+      }
     )
 
     // предикат может быть лямбдой или функтором. Есть несколько возможных форм
@@ -72,7 +78,15 @@ int main ()
     // Форматы допустимых параметров описаны в request_predicate.h
     .on_request (
       [] (http::method method) { return method == http::method::Get; },
-      [] () { std::cout << "Get request FOUND\n"; }
+
+      // такая версия обработчика получает asio socket, stream или ssl_stream.
+      // tag::asio_stream указывает библиотеке использовать вызов с 
+      // asio iostream.
+      [] (::http::method method, auto const& parsed, 
+          ::http::tag::asio_stream, auto& stream) 
+      { 
+      	// ...
+      }
     )
 
     // еще один вариант предиката. http::url::path здесь - экстрактор (описан в
@@ -83,7 +97,11 @@ int main ()
     // предикатов сравнения, что несложно, но муторно.
     .on_request (
       predicates::istarts_with (http::url::path, "/a/b/c"),
-      [] () { std::cout << "FOUND\n"; }
+
+      [] (:http::method method, auto const& parsed, std::iostream& io) 
+      { 
+      	std::cout << "FOUND\n"; 
+      }
     )
 
     // вызывает io_service.run () со всеми вытекающими последствиями...
