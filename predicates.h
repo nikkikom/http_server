@@ -45,6 +45,17 @@ template <typename ExtractorT, typename TestT>
 class istarts_with_helper
 {
 public:
+#if defined(BOOST_RESULT_OF_USE_DECLTYPE)
+  template <class> struct result {};
+  template <class F, class Iterator> 
+  struct result<F(method m, 
+                  boost::iterator_range<Iterator>, 
+                  uri::parts<Iterator>)> 
+  {
+  	typedef bool type;
+  };
+#endif
+
 	istarts_with_helper (ExtractorT const& extract, TestT const& tst,
 	    std::locale const& loc)
 	  : extract_ (extract)

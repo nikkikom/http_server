@@ -5,6 +5,7 @@
 #include <http_server/compat.h>
 #include <http_server/server/io_manager.h>
 #include <http_server/request_predicate.h>
+#include <http_server/tag.h>
 
 #include <http_server/detail/no_pool.h>
 
@@ -86,13 +87,38 @@ public:
     manager_.listen_on (ep, 
 #if __cplusplus < 201103L
       boost::protect (
-        boost::bind (&server::handle_accept, this, _1, ep, _2, _3)
+        boost::bind (&server::handle_accept, this, _1, _2, ep, _3, _4)
       )
 #else
 			[this, ep] 
-			(error_code const& ec, endpoint_type const& remote_ep, socket_type& sock)
+			(asio::yield_context const& y, error_code const& ec, 
+			  endpoint_type const& remote_ep, socket_type& sock)
 			{
-				handle_accept (ec, ep, remote_ep, sock);
+				handle_accept (y, ec, ep, remote_ep, sock);
+      }
+#endif
+    );
+
+    return *this;
+  }
+
+  // Start SSL/TLS acceptor
+  server&
+  listen_on (endpoint_type const& ep, tag::tls_t)
+  {
+  	HTTP_TRACE_ENTER_CLS();
+    
+    manager_.listen_on (ep, 
+#if __cplusplus < 201103L
+      boost::protect (
+        boost::bind (&server::handle_accept, this, _1, _2, ep, _3, _4)
+      )
+#else
+			[this, ep] 
+			(asio::yield_context const& y, error_code const& ec, 
+			  endpoint_type const& remote_ep, socket_type& sock)
+			{
+				handle_accept (y, ec, ep, remote_ep, sock);
       }
 #endif
     );
@@ -136,9 +162,10 @@ public:
 
   template <typename ConnectHandler>
   server& on_connect (ConnectHandler handler, typename boost::enable_if<
-      typename boost::is_same<typename boost::result_of<ConnectHandler (
-            error_code, endpoint_type, endpoint_type, socket_type&
-        )>::type, void>::type, enabler>::type = enabler ())
+      boost::is_void<typename boost::result_of<ConnectHandler (
+            asio::yield_context, error_code, endpoint_type, 
+            endpoint_type, socket_type&
+        )>::type>, enabler>::type = enabler ())
   {
     HTTP_TRACE_ENTER_CLS();
     on_connect_handler_ = on_connect_true_<ConnectHandler> (handler);
@@ -149,11 +176,12 @@ public:
   template <typename ConnectHandler>
   server& 
   on_connect (ConnectHandler&& handler, typename boost::enable_if<
-      typename boost::is_same<
+      boost::is_same<
           typename boost::result_of<ConnectHandler (
-            error_code, endpoint_type, endpoint_type, socket_type&
+            asio::yield_context, error_code, endpoint_type, 
+            endpoint_type, socket_type&
           )>::type, error_code
-      >::type, enabler>::type = enabler ())
+      >, enabler>::type = enabler ())
   {
     HTTP_TRACE_ENTER_CLS();
     on_connect_handler_ = std::move (handler);
@@ -163,12 +191,12 @@ public:
   template <typename ConnectHandler>
   server& 
   on_connect (ConnectHandler const& handler, typename boost::enable_if<
-      typename boost::is_same<
-          typename boost::result_of<
-            ConnectHandler (
-              error_code, endpoint_type, endpoint_type, socket_type&
+      boost::is_same<
+          typename boost::result_of<ConnectHandler (
+              asio::yield_context, error_code, endpoint_type, 
+              endpoint_type, socket_type&
             )>::type, error_code
-      >::type, enabler>::type = enabler ())
+      >, enabler>::type = enabler ())
   {
     HTTP_TRACE_ENTER_CLS();
     on_connect_handler_ = boost::move (handler);
@@ -195,12 +223,13 @@ public:
   }
 
 protected:
-  void handle_accept (error_code const& ec, 
+  void handle_accept (asio::yield_context const& yield, error_code const& ec, 
       endpoint_type const& local_ep, endpoint_type const& remote_ep,
       socket_type& sock)
   {
     HTTP_TRACE_ENTER_CLS();
-    error_code connect_ec = on_connect_handler_ (ec, local_ep, remote_ep, sock);
+    error_code connect_ec = 
+        on_connect_handler_ (yield, ec, local_ep, remote_ep, sock);
 
     if (connect_ec)
     {
@@ -210,8 +239,6 @@ protected:
     {
     	// continue 
     }
-
-
   }
 
 protected:
@@ -221,23 +248,26 @@ protected:
 #if __cplusplus >= 201103L
 		on_connect_true_ (H&& h) : handler (std::move (h)) {}
 #endif
-  	error_code operator() (error_code const& ec, endpoint_type const& l, 
+  	error_code operator() (asio::yield_context const& yield, 
+  	    error_code const& ec, endpoint_type const& l, 
   	    endpoint_type const& r, socket_type& s) const
   	{
-  		handler (ec, l, r, s);
+  		handler (yield, ec, l, r, s);
   		return error_code ();
     }
 
-  	error_code operator() (error_code const& ec, endpoint_type const& l, 
+  	error_code operator() (asio::yield_context const& yield, 
+  	    error_code const& ec, endpoint_type const& l, 
   	    endpoint_type const& r, socket_type& s) 
   	{
-  		handler (ec, l, r, s);
+  		handler (yield, ec, l, r, s);
   		return error_code ();
     }
   };
 
-  static error_code on_connect_default (error_code const&, 
-      endpoint_type const&, endpoint_type const&, socket_type&)
+  static error_code on_connect_default (asio::yield_context const&, 
+      error_code const&, endpoint_type const&, 
+      endpoint_type const&, socket_type&)
   {
   	return error_code ();
   }
@@ -247,7 +277,8 @@ private:
   pool_type pool_;
   handler_vec handlers_;
 
-  compat::function<error_code (error_code const&, endpoint_type const&, 
+  compat::function<error_code (asio::yield_context const&, 
+      error_code const&, endpoint_type const&, 
       endpoint_type const&, socket_type&)> on_connect_handler_;
 };
 

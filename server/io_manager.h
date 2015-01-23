@@ -1,6 +1,7 @@
 #ifndef _HTTP_SERVER_IO_MANAGER_H_
 #define _HTTP_SERVER_IO_MANAGER_H_
 #include <http_server/asio.h>
+#include <http_server/tag.h>
 #include <http_server/compat.h>
 #include <http_server/trace.h>
 #include <http_server/debug.h>
@@ -18,6 +19,7 @@
 
 #if __cplusplus < 201103L
 # include <boost/bind.hpp>
+# include <boost/bind/protect.hpp>
 #endif
 
 #include <memory>
@@ -145,6 +147,15 @@ public:
   	acc.release ();
 	}
 
+  template <typename Handler>
+	void 
+	listen_on (endpoint_type const& ep, tag::tls_t, Handler handler)
+	{
+  	HTTP_TRACE_ENTER_CLS();
+
+  	listen_on (ep, start_tls (handler));
+	}
+
 protected:
   template <typename Handler>
   void accept (acceptor_type& acc, endpoint_type const& ep, Handler handler)
@@ -164,7 +175,7 @@ protected:
         sock_ptr, handler
       )
 #else
-			[this,&acc,sock_ptr,ep,eptr,handler] (error_code const& ec) {
+			[this,&acc,sock_ptr,ep,eptr,handler] (sys::error_code const& ec) {
         handle_accept<Handler> (ec, acc, ep, eptr, sock_ptr, handler);
       }
 #endif
@@ -176,12 +187,13 @@ protected:
 
 protected:
   template <typename Handler>
-  void handle_accept (error_code const& ec
+  void handle_accept (sys::error_code const& ec
 	, acceptor_type& acc,
       endpoint_type const& local_ep, endpoint_type const* remote_ep,
       socket_ptr sock, Handler handler)
   {
   	assert (remote_ep);
+  	assert (sock != NULL);
 
 #if __cplusplus >= 201103L
 		auto _deleter = [this] (socket_ptr s) { destroy (s); };
@@ -193,10 +205,32 @@ protected:
 #endif
       HTTP_TRACE_ENTER_CLS();
 
+      // restart acceptor again
       accept (acc, local_ep, handler);
     
-      // FIXME: should be remote_ep instead
-      handler (ec, *remote_ep, *sock);
+      endpoint_type rep (*remote_ep);
+
+      // By now use coroutines for all handlers
+      // (to be fixed later)
+      
+// FIXME: use move and lambdas when possible
+      asio::spawn (sock->get_io_service (), 
+#if __cplusplus < 201103L
+			boost::protect (
+        boost::bind (handler, _1, ec, rep, boost::ref (*sock))
+      )
+#else
+# if __cplusplus < 201301L
+        [handler, ec, rep, sock] 
+# else
+        [handler=std::move (handler), ec, rep, sock]
+#endif
+        (asio::yield_context const& y)
+        {
+          handler (y, ec, rep, *sock);
+        }
+#endif
+      );
 
 #if __cplusplus < 201103L
     } 
