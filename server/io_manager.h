@@ -1,11 +1,11 @@
 #ifndef _HTTP_SERVER_IO_MANAGER_H_
 #define _HTTP_SERVER_IO_MANAGER_H_
-#include <http/asio.h>
-#include <http/compat.h>
-#include <http/trace.h>
-#include <http/debug.h>
+#include <http_server/asio.h>
+#include <http_server/compat.h>
+#include <http_server/trace.h>
+#include <http_server/debug.h>
 
-#include <http/detail/mutex.h>
+#include <http_server/detail/mutex.h>
 
 #include <boost/thread.hpp>
 #include <boost/utility/addressof.hpp>

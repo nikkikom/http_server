@@ -1,6 +1,6 @@
 #ifndef _HTTP_TRAITS_IS_URL_PLACEHOLDER_H_
 #define _HTTP_TRAITS_IS_URL_PLACEHOLDER_H_
-#include <http/placeholders.h>
+#include <http_server/placeholders.h>
 
 #include <boost/mpl/bool.hpp>
 

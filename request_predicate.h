@@ -1,7 +1,7 @@
 #ifndef _HTTP_REQUEST_PREDICATE_H_
 #define _HTTP_REQUEST_PREDICATE_H_
-#include <http/method.h>
-#include <http/uri/parts.h>
+#include <http_server/method.h>
+#include <http_server/uri/parts.h>
 
 #include <boost/utility/enable_if.hpp>
 #include <boost/utility/result_of.hpp>
@@ -17,47 +17,61 @@ namespace mpl = ::boost::mpl;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Full predicate: method, path, parsed_req
-template <typename T, typename Iterator, typename ResultOf = bool>
+template <typename T, typename Iterator, typename Enable = void>
 struct is_full_request_predicate: mpl::false_ {};
 
 template <typename T, typename Iterator>
-struct is_full_request_predicate<T, Iterator, typename boost::result_of<T (
-    method, boost::iterator_range<Iterator>, uri::parts<Iterator>
-  )>::type
->: mpl::true_ {};
+struct is_full_request_predicate<T, Iterator, typename boost::enable_if<
+  typename boost::is_same<
+      typename boost::result_of<T (
+        method, boost::iterator_range<Iterator>, uri::parts<Iterator>
+      )>::type
+    , bool
+  >::type>::type> : mpl::true_ {};
 
 ////////////////////////////////////////////////////////////////////////////////
 // Parsed only predicate: method, parsed_req
-template <typename T, typename Iterator, typename ResultOf = bool>
+template <typename T, typename Iterator, typename Enable = void>
 struct is_parsed_request_predicate: mpl::false_ {};
 
 template <typename T, typename Iterator>
-struct is_parsed_request_predicate<T, Iterator, typename boost::result_of<T (
-    method, uri::parts<Iterator>
-  )>::type
->: mpl::true_ {};
+struct is_parsed_request_predicate<T, Iterator, typename boost::enable_if<
+  typename boost::is_same<
+      typename boost::result_of<T (
+        method, uri::parts<Iterator>
+      )>::type
+    , bool
+  >::type>::type> : mpl::true_ {};
 
 ////////////////////////////////////////////////////////////////////////////////
 // Path only predicate: method, path
-template <typename T, typename Iterator, typename ResultOf = bool>
+template <typename T, typename Iterator, typename Enable = void>
 struct is_path_request_predicate: mpl::false_ {};
 
 template <typename T, typename Iterator>
-struct is_path_request_predicate<T, Iterator, typename boost::result_of<T (
-    method, boost::iterator_range<Iterator>
-  )>::type
->: mpl::true_ {};
+struct is_path_request_predicate<T, Iterator, typename boost::enable_if<
+  typename boost::is_same<
+     typename boost::result_of<T (
+        method, boost::iterator_range<Iterator>
+      )>::type
+    , bool
+  >::type>::type>: mpl::true_ {};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Method only predicate: method
-template <typename T, typename Iterator, typename ResultOf = bool>
+template <typename T, typename Iterator, typename Enable = void>
 struct is_method_request_predicate: mpl::false_ {};
 
 template <typename T, typename Iterator>
-struct is_method_request_predicate<T, Iterator, typename boost::result_of<T (
-    method
-  )>::type
->: mpl::true_ {};
+struct is_method_request_predicate<T, Iterator, typename boost::enable_if<
+  typename boost::is_same<
+     typename boost::result_of<T (
+        method
+      )>::type
+    , bool
+  >::type>::type>: mpl::true_ {};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Normalize full predicate (method, path, parsed_req)

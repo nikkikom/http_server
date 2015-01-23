@@ -1,12 +1,12 @@
 #ifndef _HTTP_SERVER_SERVER_H_
 #define _HTTP_SERVER_SERVER_H_
 
-#include <http/trace.h>
-#include <http/compat.h>
-#include <http/server/io_manager.h>
-#include <http/request_predicate.h>
+#include <http_server/trace.h>
+#include <http_server/compat.h>
+#include <http_server/server/io_manager.h>
+#include <http_server/request_predicate.h>
 
-#include <http/detail/no_pool.h>
+#include <http_server/detail/no_pool.h>
 
 #include <boost/noncopyable.hpp>
 
@@ -21,6 +21,7 @@
 #if __cplusplus < 201103L
 # include <boost/bind.hpp>
 # include <boost/bind/protect.hpp>
+# include <boost/move/move.hpp>
 #endif
 
 #include <utility> // std::move, forward, etc
@@ -135,7 +136,7 @@ public:
 
   template <typename ConnectHandler>
   server& on_connect (ConnectHandler handler, typename boost::enable_if<
-      typename boost::is_same<typename std::result_of<ConnectHandler (
+      typename boost::is_same<typename boost::result_of<ConnectHandler (
             error_code, endpoint_type, endpoint_type, socket_type&
         )>::type, void>::type, enabler>::type = enabler ())
   {
@@ -144,6 +145,7 @@ public:
     return *this;
   }
 
+#if __cplusplus >= 201103L
   template <typename ConnectHandler>
   server& 
   on_connect (ConnectHandler&& handler, typename boost::enable_if<
@@ -154,9 +156,25 @@ public:
       >::type, enabler>::type = enabler ())
   {
     HTTP_TRACE_ENTER_CLS();
-    on_connect_handler_ = handler; // boost::move
+    on_connect_handler_ = std::move (handler);
     return *this;
   }
+#else
+  template <typename ConnectHandler>
+  server& 
+  on_connect (ConnectHandler const& handler, typename boost::enable_if<
+      typename boost::is_same<
+          typename boost::result_of<
+            ConnectHandler (
+              error_code, endpoint_type, endpoint_type, socket_type&
+            )>::type, error_code
+      >::type, enabler>::type = enabler ())
+  {
+    HTTP_TRACE_ENTER_CLS();
+    on_connect_handler_ = boost::move (handler);
+    return *this;
+  }
+#endif
 
   template <typename RequestPredicate, typename RequestHandler>
   server& on_request (RequestPredicate pred, RequestHandler handler)

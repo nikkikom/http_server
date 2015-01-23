@@ -1,10 +1,10 @@
 #ifndef _HTTP_PLACEHOLDERS_H_
 #define _HTTP_PLACEHOLDERS_H_
 
-#include <http/compat.h>
+#include <http_server/compat.h>
 
-#include <http/method.h>
-#include <http/uri/parts.h>
+#include <http_server/method.h>
+#include <http_server/uri/parts.h>
 
 namespace http {
 

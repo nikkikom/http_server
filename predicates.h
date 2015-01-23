@@ -1,8 +1,8 @@
 #ifndef _HTTP_PREDICATES_H_
 #define _HTTP_PREDICATES_H_
-#include <http/traits/is_iterator_range.h>
-#include <http/traits/is_url_placeholder.h>
-#include <http/uri/parts.h>
+#include <http_server/traits/is_iterator_range.h>
+#include <http_server/traits/is_url_placeholder.h>
+#include <http_server/uri/parts.h>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/utility/enable_if.hpp>
