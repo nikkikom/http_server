@@ -1,27 +1,39 @@
 #include <boost/utility/result_of.hpp>
 #include <boost/utility/enable_if.hpp>
 #include <boost/type_traits.hpp>
+#include <boost/mpl/bool.hpp>
 using namespace boost; 
+using mpl::true_;
+using mpl::false_;
+
+template <class, class ResultOf = bool> struct sig_int : false_ {};
+
+template <class T>
+struct sig_int<T, typename result_of<T(int)>::type> : true_ {};
 
 template< class F >
-typename enable_if<is_void<typename result_of<F(int)>::type>, bool>::type
+typename enable_if<sig_int<F>, void >::type
 f (F const& x)
 {
   x(1);
-  return true;
 }
 
+template <class, class ResultOf = bool> struct sig_int2 : false_ {};
+template <class T> 
+struct sig_int2<T, class result_of<T(int,int)>::type> : true_ {};
+
 template< class F >
-typename enable_if<is_void< typename result_of<F(int,int)>::type>, bool>::type
+typename enable_if<sig_int2<F>, void >::type
 f (F const& x)
 {
   x(1,2);
-  return true;
 }
 
 struct A {
-  typedef void result_type;
-  void operator()(int) const { }
+  template <class> struct result {};
+  template <class F> struct result<F (int)> { typedef bool type; };
+
+  bool operator()(int) const { return true; }
 };
 
 int main()

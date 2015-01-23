@@ -1,5 +1,3 @@
-#define BOOST_RESULT_OF_USE_TR1_WITH_DECLTYPE_FALLBACK
-
 #include <boost/range/as_literal.hpp>
 #include "server.h"
 #include "placeholders.h"
@@ -13,22 +11,31 @@ using sys::error_code;
 namespace asio = ::boost::asio;
 using asio::ip::tcp;
 
-void on_connect (boost::system::error_code const& ec,
+void on_connect (asio::yield_context const& yield, sys::error_code const& ec,
   tcp::endpoint const& local_ep, tcp::endpoint const& remote_ep,
   tcp::socket& sock) 
 {
 	std::cout << "connect from " << remote_ep << " to " << local_ep << "\n";
 }
 
+#if 0
 struct on_connect2 {
-	void operator() (boost::system::error_code const& ec,
+	void operator() (asio::yield_context const& yield, sys::error_code const& ec,
 	  tcp::endpoint const& local_ep, tcp::endpoint const& remote_ep,
 	    tcp::socket& sock) const {}
 };
+#endif
 
 // predicate example:
 struct my_path
 {
+#if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
+	template <class> struct result {};
+	template <class F, class Iterator> 
+	struct result<F (http::method,boost::iterator_range<Iterator>)> 
+	{ typedef bool type; };
+#endif
+
 	template <typename Iterator>
 	bool operator() (http::method m, boost::iterator_range<Iterator> path)
 	{
@@ -46,6 +53,7 @@ int main ()
 {
 	namespace predicates = ::http::predicates;
 	namespace url = ::http::placeholders::url;
+	namespace tag = ::http::tag;
 
 	HTTP_TRACE_ENTER();
 
@@ -61,12 +69,12 @@ int main ()
     .listen_on (tcp::endpoint (tcp::v4 (), 1234))
 
     // и 1235/TLS - TLS пока недоделан
-    // .listen_on (tcp::endpoint (tcp::v4 (), 1235), ::http::tls)
+    .listen_on (tcp::endpoint (tcp::v4 (), 1235), ::http::tag::tls)
 
     // при коннекте клиента к нам вызывается handler "on_connect", который может
     // логгировать, или вернуть true/false, или error_code. При возврате false
     // или непустого error_code, клиент отвергается, error_code логгируется.
-    .on_connect (on_connect2 ())
+    .on_connect (&on_connect)
 
     // регистрируем обработчик запросов. В данном случае будет вызываться
     // "my_path" на каждый запрос, если он вернут true, то будет вызываться

@@ -1,6 +1,7 @@
 #ifndef _HTTP_TRAITS_HANDLER_TYPE_H_
 #define _HTTP_TRAITS_HANDLER_TYPE_H_
 #include <boost/mpl/bool.hpp>
+#include <boost/utility/result_of.hpp>
 #include <boost/type_traits/function_traits.hpp>
 #include <utility> // std::forward
 
@@ -33,14 +34,12 @@ struct is_handler_stream: mpl::false_ {};
 template <typename T>
 struct is_handler_stream<detail::handler_stream_helper<T> >: mpl::true_ {};
 
-template <typename T, class Enable = void>
+template <typename T, class ResultOf = void>
 struct is_handler_stream_signature: mpl::false_ {};
 
 template <typename T>
-struct is_handler_stream_signature<T, typename std::enable_if<
-    std::is_same<void, typename std::result_of<T (int)>::type>::value
-  >::type
->: mpl::true_ {};
+struct is_handler_stream_signature<T, typename boost::result_of<T (int)>::type>
+: mpl::true_ {};
 
 template <typename T>
 struct is_handler_asio_buffer: mpl::false_ {};
@@ -53,19 +52,15 @@ template <typename T, class Enable = void>
 struct is_handler_asio_buffer_signature: mpl::false_ {};
 
 template <typename T>
-struct is_handler_asio_buffer_signature<T, typename std::enable_if<
-    std::is_same<void, typename std::result_of<T (char const*)>::type>::value
-  >::type
->: mpl::true_ {};
+struct is_handler_asio_buffer_signature<T, 
+    typename boost::result_of<T (char const*)>::type> : mpl::true_ {};
 
 template <typename T, class Enable = void>
 struct is_handler_other_signature: mpl::false_ {};
 
 template <typename T>
-struct is_handler_other_signature<T, typename std::enable_if<
-    std::is_same<void, typename std::result_of<T ()>::type>::value
-  >::type
->: mpl::true_ {};
+struct is_handler_other_signature<T, typename boost::result_of<T ()>::type>
+  : mpl::true_ {};
 
 template <typename T>
 struct nake_handler_helper { typedef T type; };
