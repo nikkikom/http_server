@@ -4,7 +4,7 @@
 #include <http_server/trace.h>
 #include <http_server/compat.h>
 #include <http_server/server/io_manager.h>
-#include <http_server/request_predicate.h>
+#include <http_server/request_handler.h>
 #include <http_server/tag.h>
 
 #include <http_server/detail/no_pool.h>
@@ -25,6 +25,8 @@
 # include <boost/move/move.hpp>
 #endif
 
+#include <boost/foreach.hpp>
+
 #include <utility> // std::move, forward, etc
 
 namespace http { _inline_ns namespace _server {
@@ -34,16 +36,17 @@ class server: boost::noncopyable
 {
 	struct enabler {};
 
+
   typedef char const* request_iterator;
 
 	typedef compat::function<bool(
 	    method, 
-	    boost::iterator_range<request_iterator>,
-	    uri::parts<request_iterator>
-	  )> predicate_type;
-	typedef compat::function<void()> handler_type;
+	    uri::parts<request_iterator>,
+      
+      asio::ip::tcp::socket&
+	  )> handler_type;
 
-	typedef std::vector<std::pair<predicate_type, handler_type> > handler_vec;
+	typedef std::vector<handler_type> handler_vec;
 
 public:
   typedef Manager manager_type;
@@ -51,6 +54,7 @@ public:
 
   typedef typename manager_type::socket_type socket_type;
   typedef typename manager_type::socket_ptr socket_ptr;
+	typedef boost::shared_ptr<socket_type> sock_smart_ptr;
 
   typedef typename manager_type::endpoint_type endpoint_type;
 
@@ -204,15 +208,20 @@ public:
   }
 #endif
 
-  template <typename RequestPredicate, typename RequestHandler>
-  server& on_request (RequestPredicate pred, RequestHandler handler)
+  template <typename RequestHandler>
+  server& 
+  on_request (RequestHandler handler,
+    typename boost::enable_if<
+      boost::is_same<typename boost::result_of<RequestHandler ()>::type, bool>,
+      enabler>::type = enabler ())
   {
     HTTP_TRACE_ENTER_CLS();
 
-  	handlers_.push_back (handler_vec::value_type (
-  	 normalize_predicate<request_iterator> (pred), 
-  	 handler // normalize_handler (handler)
-  	));
+#if 0
+  	handlers_.push_back (
+  	 normalize_handler<request_iterator> (handler)
+  	);
+#endif
 
 #if 0
     // FIXME: debug
@@ -222,22 +231,73 @@ public:
   	return *this;
   }
 
+#if __cplusplus < 201103L
+  template <typename RequestHandler>
+  server& 
+  on_request (RequestHandler handler,
+    typename boost::enable_if<
+      boost::is_same<typename boost::result_of<RequestHandler (
+        http::method, uri::parts<request_iterator>, sock_smart_ptr
+      )>::type, bool>,
+      enabler>::type = enabler ())
+  {
+    HTTP_TRACE_ENTER_CLS();
+
+  	handlers_.push_back (
+  	 normalize_handler<request_iterator, sock_smart_ptr, RequestHandler> (
+  	    boost::move (handler)
+  	  )
+  	);
+  	return *this;
+  }
+#else
+  template <typename RequestHandler>
+  server& 
+  on_request (RequestHandler&& handler,
+    typename boost::enable_if<
+      boost::is_same<typename boost::result_of<RequestHandler (
+        http::method, uri::parts<request_iterator>, sock_smart_ptr
+      )>::type, bool>,
+      enabler>::type = enabler ())
+  {
+    HTTP_TRACE_ENTER_CLS();
+
+  	handlers_.push_back (
+  	 normalize_handler<request_iterator, sock_smart_ptr> (
+  	    std::forward<RequestHandler> (handler)
+  	  )
+  	);
+  	return *this;
+  }
+#endif
+
 protected:
   void handle_accept (asio::yield_context const& yield, error_code const& ec, 
       endpoint_type const& local_ep, endpoint_type const& remote_ep,
       socket_type& sock)
   {
     HTTP_TRACE_ENTER_CLS();
+
     error_code connect_ec = 
         on_connect_handler_ (yield, ec, local_ep, remote_ep, sock);
+
+    if (! connect_ec)
+    {
+    	// continue 
+    	bool ok = false;
+    	BOOST_FOREACH (handler_type& handler, handlers_)
+    	{
+    		if (true == 
+    			  (ok = handler (method::Get, uri::parts<request_iterator> (), sock)))
+    			break;
+      }
+
+      if (! ok) connect_ec = make_error_code (sys::errc::function_not_supported);
+    }
 
     if (connect_ec)
     {
     	// print error, close connection
-    }
-    else
-    {
-    	// continue 
     }
   }
 

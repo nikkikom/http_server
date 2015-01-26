@@ -1,9 +1,13 @@
 #include <boost/range/as_literal.hpp>
+#include <boost/make_shared.hpp>
+#include <boost/enable_shared_from_this.hpp>
+
 #include "server.h"
 #include "placeholders.h"
 #include "predicates.h"
 #include "trace.h"
 
+#include <boost/asio.hpp>
 
 namespace sys = ::boost::system;
 using sys::error_code;
@@ -43,6 +47,61 @@ struct my_path
   }
 };
 
+class my_handler
+{
+	template <typename SmartSock>
+	class rollit : public boost::enable_shared_from_this<rollit<SmartSock> >
+	{
+  public:
+    rollit (SmartSock sock) : sock_ (boost::move (sock)) {};
+  
+    void start ()
+    {
+      asio::async_read (*sock_, sbuf_,
+        boost::bind (&rollit::handle_read, 
+            this->shared_from_this (), _1, _2)
+      );
+    }
+
+    void handle_read (sys::error_code ec, std::size_t bytes)
+    {
+    	sbuf_.commit (bytes);
+    	std::istream is (&sbuf_);
+    	std::string s;
+    	is >> s;
+    	std::cout << "READ: " << s << "\n";
+    }
+
+  private:
+    SmartSock sock_;
+    asio::streambuf sbuf_;
+  };
+
+public:
+#if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
+	template <class> struct result {};
+	template <class F, class Iterator, class SmartSock> 
+	struct result<F (http::method,http::uri::parts<Iterator>,SmartSock)>
+	{ typedef bool type; };
+#endif
+
+	template <typename Iterator, typename SmartSock>
+	bool operator() (http::method m, http::uri::parts<Iterator> const& parsed, 
+	    SmartSock sock) const
+	{
+#if 0
+		if (! parsed.hier_part.path 
+			  || ! boost::istarts_with (*parsed.hier_part.path, 
+			    boost::as_literal ("/callback/")))
+			return false;
+#endif
+    boost::make_shared<rollit<SmartSock> > (boost::move (sock))->start ();
+
+		return true;
+  }
+
+};
+
 struct request_handler
 {
 	// simple do-nothing handler for compile test purposes.
@@ -76,6 +135,7 @@ int main ()
     // или непустого error_code, клиент отвергается, error_code логгируется.
     .on_connect (&on_connect)
 
+#if 0
     // регистрируем обработчик запросов. В данном случае будет вызываться
     // "my_path" на каждый запрос, если он вернут true, то будет вызываться
     // второй аргумент = обработчик запроса.
@@ -153,15 +213,20 @@ int main ()
 #endif
     )
 
-#if __cplusplus >= 201301L
+#endif
+
     // Callback-style handler
     .on_request (
-      predicates::istarts_with (url::path, "/callback/"),
+      // predicates::istarts_with (url::path, "/callback/"),
+#if __cplusplus >= 201301L
       [] (http::method, auto const& parsed, auto sock_ptr)
       {
+      	return true;
       }
+#else
+			my_handler ()
+#endif
     )
-#endif 
 
     // вызывает io_service.run () со всеми вытекающими последствиями...
     // удобно для тестов или для однотредных корутиновых серверов. 
