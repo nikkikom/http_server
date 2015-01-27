@@ -1,5 +1,5 @@
-#ifndef _HTTP_REQUEST_HANDLER_H_
-#define _HTTP_REQUEST_HANDLER_H_
+#ifndef _HTTP_CORO_HANDLER_H_
+#define _HTTP_CORO_HANDLER_H_
 #include <http_server/method.h>
 #include <http_server/uri/parts.h>
 
@@ -7,8 +7,6 @@
 #include <boost/utility/result_of.hpp>
 #include <boost/type_traits.hpp>
 #include <boost/range.hpp>
-
-
 
 #if __cplusplus < 201103L
 # include <boost/shared_ptr.hpp>
@@ -23,12 +21,12 @@ namespace http {
 
 namespace detail {
 
-template <typename Socket>
 class socket_deleter 
 {
 public:
   socket_deleter () {}
 
+  template <typename Socket>
   void operator() (Socket* sock) const
   {
   }
@@ -45,17 +43,18 @@ public:
 	callback_handler (Handler&& handler) : handler_ (std::move	(handler)) {}
 #endif
 
-  template <typename Iterator, typename Socket>
-  bool operator() (method m, uri::parts<Iterator> parsed, Socket& sock) const
+  template <typename Iterator, typename SocketPtr>
+  bool operator() (method m, uri::parts<Iterator> parsed, SocketPtr sock) const
   {
+  	typedef typename boost::remove_pointer<SocketPtr>::type Socket;
   	// convert socket into smart object
 #if __cplusplus >= 201103L
-		typedef std::unique_ptr<Socket, socket_deleter<Socket>> sock_smart_ptr;
-		sock_smart_ptr sptr (&sock, socket_deleter<Socket> ());
+		typedef std::unique_ptr<Socket, socket_deleter> sock_smart_ptr;
+		sock_smart_ptr sptr (sock, socket_deleter ());
 		return handler_ (m, parsed, std::move (sptr));
 #else
 		typedef boost::shared_ptr<Socket> sock_smart_ptr;
-		sock_smart_ptr sptr (&sock, socket_deleter<Socket> ());
+		sock_smart_ptr sptr (sock, socket_deleter ());
 		return handler_ (m, parsed, sptr);
 #endif
   }
@@ -81,4 +80,4 @@ normalize_handler (Handler handler, typename boost::enable_if<
 }
 
 } // namespace http
-#endif // _HTTP_REQUEST_HANDLER_H_
+#endif // _HTTP_CORO_HANDLER_H_

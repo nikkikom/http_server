@@ -196,9 +196,10 @@ protected:
   	assert (sock != NULL);
 
 #if __cplusplus >= 201103L
+#if 0 // delegate it to user code
 		auto _deleter = [this] (socket_ptr s) { destroy (s); };
 		std::unique_ptr<socket_type, decltype (_deleter)> s_guard (sock, _deleter);
-
+#endif
     std::unique_ptr<endpoint_type const> ep_guard (remote_ep);
 #else
     try {
@@ -213,6 +214,7 @@ protected:
       // By now use coroutines for all handlers
       // (to be fixed later)
       
+#if 0
 // FIXME: use move and lambdas when possible
       asio::spawn (sock->get_io_service (), 
 #if __cplusplus < 201103L
@@ -231,18 +233,25 @@ protected:
         }
 #endif
       );
+#else
+# if __cplusplus < 201103L
+			handler (ec, rep, sock);
+# else
+			handler (ec, rep, std::move (sock));
+# endif
+#endif
 
 #if __cplusplus < 201103L
     } 
     catch (...) 
     {
     	delete remote_ep;
-    	destroy (sock); 
+    	// destroy (sock); 
     	throw;
     }
 
     delete remote_ep;
-    destroy (sock); 
+    // destroy (sock); 
 #endif
   }
 

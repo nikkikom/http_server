@@ -43,11 +43,12 @@
 
 #define HTTP_TRACE_RETURN(VALUE) __call_tracer.leave(__LINE__,VALUE)
 
-#define HTTP_TRACE_NOTIFY(MSG) __call_tracer.notify(__LINE__,MSG)
-
 #define HTTP_TRACE_RETURN(VALUE) __call_tracer.leave(__LINE__,VALUE)
 
-#define HTTP_TRACE_NOTIFY(MSG) __call_tracer.notify(__LINE__,MSG)
+#define HTTP_TRACE_NOTIFY(MSG) do {           \
+    std::stringstream os; os << MSG;          \
+    __call_tracer.notify(__LINE__,os.str ()); \
+  } while (0)
 
 namespace http {
 

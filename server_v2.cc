@@ -15,20 +15,20 @@ using sys::error_code;
 namespace asio = ::boost::asio;
 using asio::ip::tcp;
 
-void on_connect (asio::yield_context const& yield, sys::error_code const& ec,
-  tcp::endpoint const& local_ep, tcp::endpoint const& remote_ep,
-  tcp::socket& sock) 
+struct on_connect 
 {
-	std::cout << "connect from " << remote_ep << " to " << local_ep << "\n";
-}
-
-#if 0
-struct on_connect2 {
-	void operator() (asio::yield_context const& yield, sys::error_code const& ec,
-	  tcp::endpoint const& local_ep, tcp::endpoint const& remote_ep,
-	    tcp::socket& sock) const {}
-};
+#if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
+	typedef void result_type;
 #endif
+
+  template <typename SmartSock>
+  void operator() (asio::yield_context yield, 
+      sys::error_code const& ec, tcp::endpoint const& local_ep, 
+      tcp::endpoint const& remote_ep, SmartSock sock) const
+  {
+    std::cout << "connect from " << remote_ep << " to " << local_ep << "\n";
+  }
+};
 
 // predicate example:
 struct my_path
@@ -36,12 +36,12 @@ struct my_path
 #if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
 	template <class> struct result {};
 	template <class F, class Iterator> 
-	struct result<F (http::method,boost::iterator_range<Iterator>)> 
+	struct result<F (http::HttpMethod,boost::iterator_range<Iterator>)> 
 	{ typedef bool type; };
 #endif
 
 	template <typename Iterator>
-	bool operator() (http::method m, boost::iterator_range<Iterator> path)
+	bool operator() (http::HttpMethod m, boost::iterator_range<Iterator> path)
 	{
 		return boost::istarts_with (path, boost::as_literal ("/a/b/c"));
   }
@@ -57,7 +57,7 @@ class my_handler
   
     void start ()
     {
-      asio::async_read (*sock_, sbuf_,
+      asio::async_read_until (*sock_, sbuf_, "\r\n",
         boost::bind (&rollit::handle_read, 
             this->shared_from_this (), _1, _2)
       );
@@ -70,6 +70,16 @@ class my_handler
     	std::string s;
     	is >> s;
     	std::cout << "READ: " << s << "\n";
+
+    	asio::async_write (*sock_, sbuf_,
+    	  boost::bind (&rollit::handle_write,
+    	      this->shared_from_this (), _1, _2)
+    	);
+    }
+
+    void handle_write (sys::error_code ec, std::size_t bytes)
+    {
+    	std::cout << "WRITE DONE\n";
     }
 
   private:
@@ -81,12 +91,12 @@ public:
 #if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
 	template <class> struct result {};
 	template <class F, class Iterator, class SmartSock> 
-	struct result<F (http::method,http::uri::parts<Iterator>,SmartSock)>
+	struct result<F (http::HttpMethod,http::uri::parts<Iterator>,SmartSock)>
 	{ typedef bool type; };
 #endif
 
 	template <typename Iterator, typename SmartSock>
-	bool operator() (http::method m, http::uri::parts<Iterator> const& parsed, 
+	bool operator() (http::HttpMethod m, http::uri::parts<Iterator> const& parsed, 
 	    SmartSock sock) const
 	{
 #if 0
@@ -120,6 +130,7 @@ int main ()
 	::http::server<> server (io);
 
   HTTP_TRACE_NOTIFY("Starting server");
+
   server
     // ставим полезные проперти
     .set_keep_alive ()
@@ -133,7 +144,7 @@ int main ()
     // при коннекте клиента к нам вызывается handler "on_connect", который может
     // логгировать, или вернуть true/false, или error_code. При возврате false
     // или непустого error_code, клиент отвергается, error_code логгируется.
-    .on_connect (&on_connect)
+    .on_connect (on_connect ())
 
 #if 0
     // регистрируем обработчик запросов. В данном случае будет вызываться
@@ -146,7 +157,7 @@ int main ()
       // по умолчанию получает std::iostream (или совместимую) структуру.
       // NB !!! передача параметров в обработчики пока не реализована !!!
 #if __cplusplus >= 201103L
-      [] (/*::http::method method, auto const& parsed, std::iostream& io*/) { 
+      [] (/*::http::HttpMethod method, auto const& parsed, std::iostream& io*/) { 
           std::cout << "FOUND\n"; 
           // io << "200 OK\r\n";
       }
@@ -158,20 +169,20 @@ int main ()
 #if __cplusplus >= 201301L
     // предикат может быть лямбдой или функтором. Есть несколько возможных форм
     // описания функтора (разные набор параметров). Например, если мы хотим
-    // проверять только http method, то можно написать [] (http::method m) {...}
+    // проверять только http method, то можно написать [] (http::HttpMethod m) {...}
     // если хотим проверять разобранный запрос, то можно 
-    // [] (http::method m, 
+    // [] (http::HttpMethod m, 
     //    /* boost::iterator_range<Iterator> */ auto const& path, 
     //    /* http::uri::parts<Iterator> */ auto const& parsed) {...}
     // В данном случае лябмдами будет неудобно, но см. пример выше с my_path.
     // Форматы допустимых параметров описаны в request_predicate.h
     .on_request (
-      [] (http::method method) { return method == http::method::Get; },
+      [] (http::HttpMethod method) { return method == http::method::Get; },
 
       // такая версия обработчика получает asio socket, stream или ssl_stream.
       // tag::asio_stream указывает библиотеке использовать вызов с 
       // asio iostream.
-      [] (/*::http::method method, auto const& parsed, 
+      [] (/*::http::HttpMethod method, auto const& parsed, 
           ::http::tag::asio_stream, auto& stream*/)
       { 
      	  // ...
@@ -184,7 +195,7 @@ int main ()
     // auto аргуметами, а так же для функтором с конфликтующими 
     // operator() (...). Пока не реализовано.
     .on_request (
-      [] (predicates::call_tag::MethodAndPath, ::http::method method,
+      [] (predicates::call_tag::MethodAndPath, ::http::HttpMethod method,
           auto const& path)
       {
      	  return false;
@@ -204,7 +215,7 @@ int main ()
       predicates::istarts_with (url::path, "/a/b/c"),
 
 #if __cplusplus >= 201301L
-      [] (/*:http::method method, auto const& parsed, std::iostream& io*/) 
+      [] (/*:http::HttpMethod method, auto const& parsed, std::iostream& io*/) 
       { 
       	std::cout << "FOUND\n"; 
       }
@@ -215,12 +226,13 @@ int main ()
 
 #endif
 
-    // Callback-style handler
+    // Coroutine 
     .on_request (
       // predicates::istarts_with (url::path, "/callback/"),
 #if __cplusplus >= 201301L
-      [] (http::method, auto const& parsed, auto sock_ptr)
+      [] (asio::yield_context yield, http::HttpMethod, auto const& parsed, auto sock_ptr)
       {
+      	std::cout << "CORO HANDLER\n";
       	return true;
       }
 #else
@@ -228,6 +240,20 @@ int main ()
 #endif
     )
 
+#if 0
+    // Callback-style handler
+    .on_request (
+      // predicates::istarts_with (url::path, "/callback/"),
+#if __cplusplus >= 201301L
+      [] (http::HttpMethod, auto const& parsed, auto sock_ptr)
+      {
+      	return true;
+      }
+#else
+			my_handler ()
+#endif
+    )
+#endif
     // вызывает io_service.run () со всеми вытекающими последствиями...
     // удобно для тестов или для однотредных корутиновых серверов. 
     .run ()
