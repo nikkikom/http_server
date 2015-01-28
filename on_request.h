@@ -3,6 +3,7 @@
 #include <boost/utility/enable_if.hpp>
 #include <boost/utility/result_of.hpp>
 #include <boost/type_traits/is_same.hpp>
+#include <boost/type_traits/decay.hpp>
 
 #include <http_server/asio.h>
 #include <http_server/trace.h>
@@ -25,27 +26,35 @@ template <typename Handler>
 class convert_on_request_to_coro
 {
 public:
+  typedef typename boost::decay<Handler>::type _Handler;
+
+#if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
   template <class> struct result {};
   template <class F, class Iterator, class SmartSock> 
   struct result<F (http::HttpMethod, uri::parts<Iterator>, SmartSock)>
   {
-  	typedef typename boost::result_of< Handler (
+  	typedef typename boost::result_of<_Handler (
   	  asio::yield_context, http::HttpMethod, uri::parts<Iterator>, SmartSock
   	)>::type type;
   };
+#endif
 
-  convert_on_request_to_coro (Handler h) : handler_ (boost::move (h)) {}
+#if __cplusplus >= 201103L
+  template <typename H, class = typename boost::enable_if<
+      boost::is_same<typename boost::decay<H>::type, _Handler>>::type>
+  convert_on_request_to_coro (H&& h) : handler_ (std::forward<H> (h)) {}
+#else
+  convert_on_request_to_coro (_Handler const& h) : handler_ (h) {}
+#endif
 
   template <typename Iterator, typename SmartSock>
-  typename boost::result_of< Handler (
+  typename boost::result_of<_Handler (
     asio::yield_context, http::HttpMethod, uri::parts<Iterator>, SmartSock
   )>::type 
   operator() (http::HttpMethod method, uri::parts<Iterator> const& parsed,
     SmartSock sock)
   {
-
-
-    typedef typename boost::result_of< Handler (
+    typedef typename boost::result_of<_Handler (
       asio::yield_context, http::HttpMethod, uri::parts<Iterator>, SmartSock
     )>::type result_type;
 
@@ -56,24 +65,50 @@ public:
   }
 
 private:
-  Handler handler_;
+  _Handler handler_;
 };
 
 } // namespace detail
 
+#if __cplusplus >= 201103L
 template <typename R, typename Iterator, typename SmartSock, typename Handler>
-R on_request (Handler handler, typename boost::enable_if_c<
+R on_request (Handler&& handler, typename boost::enable_if_c<
+    boost::is_same<typename boost::result_of<
+      typename boost::decay<Handler>::type (
+            asio::yield_context, http::HttpMethod, uri::parts<Iterator>, 
+            SmartSock
+    )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
+{
+	HTTP_TRACE_ENTER ();
+	typedef typename boost::decay<Handler>::type _Handler;
+  return detail::convert_on_request_to_coro<_Handler> (
+      std::forward<Handler> (handler));
+}
+
+template <typename R, typename Iterator, typename SmartSock, typename Handler>
+R on_request (Handler&& handler, typename boost::enable_if_c<
+    boost::is_same<typename boost::result_of<
+      typename boost::decay<Handler>::type (
+            http::HttpMethod, uri::parts<Iterator>, SmartSock
+    )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
+{
+	HTTP_TRACE_ENTER ();
+  return handler;
+}
+#else
+template <typename R, typename Iterator, typename SmartSock, typename Handler>
+R on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
             asio::yield_context, http::HttpMethod, uri::parts<Iterator>, 
             SmartSock
     )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
-  return detail::convert_on_request_to_coro<Handler> (boost::move (handler));
+  return detail::convert_on_request_to_coro<Handler> (handler);
 }
 
 template <typename R, typename Iterator, typename SmartSock, typename Handler>
-R on_request (Handler handler, typename boost::enable_if_c<
+R on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
             http::HttpMethod, uri::parts<Iterator>, SmartSock
     )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
@@ -81,5 +116,6 @@ R on_request (Handler handler, typename boost::enable_if_c<
 	HTTP_TRACE_ENTER ();
   return handler;
 }
+#endif
 } // namespace http
 #endif // _HTTP_ON_REQUEST_H_
