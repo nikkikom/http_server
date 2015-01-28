@@ -12,8 +12,6 @@
 
 #include <utility>
 
-#include <http_server/detail/enabler.h>
-
 #define HTTP_RETURN_MAX_ARGS 5
 
 namespace http {
@@ -27,10 +25,9 @@ public:
   typedef R result_type;
 
 #if __cplusplus >= 201103L
-  template <typename H>
-	return_to_type (H&& handler, R err, typename boost::enable_if<
-	    boost::is_same<typename boost::decay<H>::type,_Handler>, 
-	        detail::enabler>::type = detail::enabler ()) 
+  template <typename H, class = typename boost::enable_if<
+      boost::is_same<typename boost::decay<H>::type,_Handler>>::type>
+	return_to_type (H&& handler, R err)
 	  : handler_ (std::forward<H> (handler))
 	  , default_error_ (err)
 	{}
@@ -247,15 +244,13 @@ protected:
 	typename boost::enable_if<
 	  boost::is_same<typename boost::result_of<H ()>::type, void>,
 	  R
-	>::type convert () 
-	{ handler_ (); return R (); }
+	>::type convert () { handler_ (); return R (); }
 
 	template <class H>
 	typename boost::enable_if<
 	  boost::is_same<typename boost::result_of<H ()>::type, void>,
 	  R
-	>::type convert () const
-	{ handler_ (); return R (); }
+	>::type convert () const { handler_ (); return R (); }
 
 #define LIMITS (1, HTTP_RETURN_MAX_ARGS)
 #define TEXT(z, n, text) BOOST_PP_CAT(text,n)
@@ -301,19 +296,19 @@ private:
 
 #if __cplusplus >= 201103L
 template <typename Handler, typename R>
-detail::return_to_type<Handler, R>
+detail::return_to_type<typename boost::decay<Handler>::type, R>
 return_to_type (Handler&& handler, R err)
 {
 	return detail::return_to_type<Handler,R> (
-	  std::forward<Handler> (handler), err
+	  std::forward<typename boost::decay<Handler>::type> (handler), err
 	);
 }
 #else
 template <typename Handler, typename R>
 detail::return_to_type<Handler,R>
-return_to_type (Handler handler, R err)
+return_to_type (Handler const& handler, R err)
 {
-	return detail::return_to_type<Handler,R> (boost::move (handler), err);
+	return detail::return_to_type<Handler,R> (handler, err);
 }
 #endif
 
