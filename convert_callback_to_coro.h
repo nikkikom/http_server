@@ -8,7 +8,8 @@
 #endif
 
 #include <boost/bind.hpp>
-# include <boost/move/move.hpp>
+
+#include <boost/move/move.hpp>
 
 #include <utility>
 
@@ -34,10 +35,12 @@ public:
   {
   	result_type ret;
 
-  	boost::shared_ptr<asio::steady_timer> timer = 
+  	boost::shared_ptr<asio::steady_timer> timer (new asio::steady_timer (
+  	  io, asio::steady_timer::duration::max ()));
+#if 0
   	  boost::make_shared<asio::steady_timer> (io, 
   	    asio::steady_timer::duration::max ());
-
+#endif
   	asio::spawn (io, convertor (timer, handler_, ret));
 
   	error_code ec;
@@ -52,11 +55,13 @@ protected:
   private:
     boost::shared_ptr<asio::steady_timer> timer_;
     CoroHandler handler_;
-    result_type& ret_;
+    convert_callback_to_coro_helper::result_type& ret_;
 
   public:
+    typedef void result_type;
+
     convertor (boost::shared_ptr<asio::steady_timer> timer,
-        CoroHandler handler, result_type& ret) 
+        CoroHandler handler, convert_callback_to_coro_helper::result_type& ret) 
       : timer_ (timer)
       , handler_ (boost::move (handler))
       , ret_ (ret)
@@ -120,7 +125,7 @@ public:
 private:
   Handler handler_;
 };
-}
+} // namespace detail
 
 #if __cplusplus >= 201103L
 template <typename CoroHandler>

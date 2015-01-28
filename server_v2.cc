@@ -18,13 +18,17 @@ using asio::ip::tcp;
 struct on_connect 
 {
 #if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
-	typedef void result_type;
+	template <class> struct result {};
+	template <class F, class Endpoint, class SmartSock> 
+	struct result<F (asio::yield_context, sys::error_code, Endpoint, Endpoint,
+	SmartSock)> 
+	{ typedef void type; };
 #endif
 
-  template <typename SmartSock>
+  template <typename Endpoint, typename SmartSock>
   void operator() (asio::yield_context yield, 
-      sys::error_code const& ec, tcp::endpoint const& local_ep, 
-      tcp::endpoint const& remote_ep, SmartSock sock) const
+      sys::error_code const& ec, Endpoint const& local_ep, 
+      Endpoint const& remote_ep, SmartSock sock) const
   {
     std::cout << "connect from " << remote_ep << " to " << local_ep << "\n";
   }
@@ -112,6 +116,25 @@ public:
 
 };
 
+class my_coro_handler
+{
+public:
+#if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
+	template <class> struct result {};
+	template <class F, class Iterator, class SmartSock> 
+	struct result<F (asio::yield_context,http::HttpMethod,http::uri::parts<Iterator>,SmartSock)>
+	{ typedef bool type; };
+#endif
+
+	template <typename Iterator, typename SmartSock>
+	bool operator() (asio::yield_context y,http::HttpMethod m, 
+	    http::uri::parts<Iterator> parsed, SmartSock sock) const
+	{
+		return true;
+  }
+
+};
+
 struct request_handler
 {
 	// simple do-nothing handler for compile test purposes.
@@ -166,7 +189,7 @@ int main ()
 #endif
     )
 
-#if __cplusplus >= 201301L
+#if __cplusplus >= 201300L
     // предикат может быть лямбдой или функтором. Есть несколько возможных форм
     // описания функтора (разные набор параметров). Например, если мы хотим
     // проверять только http method, то можно написать [] (http::HttpMethod m) {...}
@@ -214,7 +237,7 @@ int main ()
     .on_request (
       predicates::istarts_with (url::path, "/a/b/c"),
 
-#if __cplusplus >= 201301L
+#if __cplusplus >= 201300L
       [] (/*:http::HttpMethod method, auto const& parsed, std::iostream& io*/) 
       { 
       	std::cout << "FOUND\n"; 
@@ -229,14 +252,14 @@ int main ()
     // Coroutine 
     .on_request (
       // predicates::istarts_with (url::path, "/callback/"),
-#if __cplusplus >= 201301L
-      [] (asio::yield_context yield, http::HttpMethod, auto const& parsed, auto sock_ptr)
+#if 0 // __cplusplus >= 201300L
+      [] (asio::yield_context yield, http::HttpMethod, auto parsed, auto sock_ptr)
       {
       	std::cout << "CORO HANDLER\n";
       	return true;
       }
 #else
-			my_handler ()
+			my_coro_handler ()
 #endif
     )
 
@@ -244,7 +267,7 @@ int main ()
     // Callback-style handler
     .on_request (
       // predicates::istarts_with (url::path, "/callback/"),
-#if __cplusplus >= 201301L
+#if __cplusplus >= 201300L
       [] (http::HttpMethod, auto const& parsed, auto sock_ptr)
       {
       	return true;

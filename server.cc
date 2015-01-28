@@ -95,7 +95,7 @@ int main ()
 #endif
     )
 
-#if __cplusplus >= 201301L
+#if __cplusplus >= 201300L
     // предикат может быть лямбдой или функтором. Есть несколько возможных форм
     // описания функтора (разные набор параметров). Например, если мы хотим
     // проверять только http method, то можно написать [] (http::method m) {...}
@@ -143,7 +143,7 @@ int main ()
     .on_request (
       predicates::istarts_with (url::path, "/a/b/c"),
 
-#if __cplusplus >= 201301L
+#if __cplusplus >= 201300L
       [] (/*:http::method method, auto const& parsed, std::iostream& io*/) 
       { 
       	std::cout << "FOUND\n"; 
@@ -153,7 +153,7 @@ int main ()
 #endif
     )
 
-#if __cplusplus >= 201301L
+#if __cplusplus >= 201300L
     // Callback-style handler
     .on_request (
       predicates::istarts_with (url::path, "/callback/"),

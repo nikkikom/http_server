@@ -5,9 +5,8 @@
 #include <http_server/compat.h>
 #include <http_server/method.h>
 #include <http_server/server/io_manager.h>
-#include <http_server/callback_handler.h>
-#include <http_server/return_to_type.h>
-#include <http_server/convert_callback_to_coro.h>
+#include <http_server/on_connect.h>
+#include <http_server/on_request.h>
 #include <http_server/tag.h>
 
 #include <http_server/detail/no_pool.h>
@@ -56,9 +55,9 @@ private:
 	    uri::parts<request_iterator>,
       
       sock_smart_ptr
-	  )> handler_type;
+	  )> request_handler_type;
 
-	typedef boost::container::stable_vector<handler_type> handler_vec;
+	typedef boost::container::stable_vector<request_handler_type> handler_vec;
 
 public:
   server (typename manager_type::service_type& io) 
@@ -82,6 +81,8 @@ public:
 
   server& set_keep_alive (...)
   {
+  	HTTP_TRACE_ENTER_CLS();
+
   	return *this;
   }
 
@@ -164,6 +165,7 @@ public:
     return *this;
   }
 
+#if 0
   // coro version
   template <typename ConnectHandler>
   server& on_connect (ConnectHandler handler, typename boost::enable_if_c<
@@ -198,7 +200,7 @@ public:
   // callback version
   template <typename ConnectHandler>
   server& on_connect (ConnectHandler handler, typename boost::enable_if_c<
-       boost::is_void<typename boost::result_of<ConnectHandler (
+     sio::yield_context,  boost::is_void<typename boost::result_of<ConnectHandler (
             error_code, endpoint_type, endpoint_type, sock_smart_ptr
        )>::type>::value 
     || boost::is_same<typename boost::result_of<ConnectHandler (
@@ -216,7 +218,36 @@ public:
     );
     return *this;
   }
+#else
+  template <typename ConnectHandler>
+  server& 
+  on_connect (ConnectHandler handler)
+  {
+    HTTP_TRACE_ENTER_CLS();
+    on_connect_handler_ = 
+        http::on_connect<connect_handler_type, endpoint_type, sock_smart_ptr> (
+            boost::move (handler));
+    return *this;
+  }
+	
+#endif
 
+#if 1
+  template <typename RequestHandler>
+  server& 
+  on_request (RequestHandler handler)
+  {
+    HTTP_TRACE_ENTER_CLS();
+
+  	handlers_.push_back (
+      http::on_request <request_handler_type, request_iterator, sock_smart_ptr> (
+  	    boost::move (handler)
+  	  )
+  	);
+
+  	return *this;
+  }
+#else
   template <typename RequestHandler>
   server& 
   on_request (RequestHandler handler,
@@ -279,6 +310,7 @@ public:
   	return *this;
   }
 #endif
+#endif
 
 protected:
   class socket_dispose
@@ -318,7 +350,7 @@ protected:
     {
     	// continue 
     	bool ok = false;
-    	BOOST_FOREACH (handler_type& handler, handlers_)
+    	BOOST_FOREACH (request_handler_type& handler, handlers_)
     	{
     		if (true == 
     			  (ok = handler (method::Get, uri::parts<request_iterator> (), sptr)))
@@ -348,8 +380,10 @@ private:
   pool_type pool_;
   handler_vec handlers_;
 
-  compat::function<error_code (error_code const&, endpoint_type const&, 
-      endpoint_type const&, sock_smart_ptr)> on_connect_handler_;
+  typedef compat::function<error_code (error_code const&, endpoint_type const&, 
+      endpoint_type const&, sock_smart_ptr)> connect_handler_type;
+      
+  connect_handler_type on_connect_handler_;
 };
 
 

@@ -222,7 +222,7 @@ protected:
         boost::bind (handler, _1, ec, rep, boost::ref (*sock))
       )
 #else
-# if __cplusplus < 201301L
+# if __cplusplus < 201300L
         [handler, ec, rep, sock] 
 # else
         [handler=std::move (handler), ec, rep, sock]
