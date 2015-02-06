@@ -165,60 +165,6 @@ public:
     return *this;
   }
 
-#if 0
-  // coro version
-  template <typename ConnectHandler>
-  server& on_connect (ConnectHandler handler, typename boost::enable_if_c<
-       boost::is_void<typename boost::result_of<ConnectHandler (
-            asio::yield_context, error_code, endpoint_type, endpoint_type, 
-            sock_smart_ptr
-       )>::type>::value 
-    || boost::is_same<typename boost::result_of<ConnectHandler (
-            asio::yield_context, error_code, endpoint_type, endpoint_type, 
-            sock_smart_ptr
-       )>::type, bool>::value 
-    || boost::is_same<typename boost::result_of<ConnectHandler (
-            asio::yield_context, error_code, endpoint_type, endpoint_type, 
-            sock_smart_ptr
-       )>::type, error_code>::value 
-    , enabler>::type = enabler ())
-  {
-    HTTP_TRACE_ENTER_CLS();
-
-    on_connect_handler_ = convert_on_connect_to_coro (
-          return_to_type (
-            boost::move (handler), 
-            make_error_code (sys::errc::io_error)
-          )
-    );
-
-    return *this;
-  }
-
-  
-  /////////////////////////////////////////////////////////////////////////////
-  // callback version
-  template <typename ConnectHandler>
-  server& on_connect (ConnectHandler handler, typename boost::enable_if_c<
-     sio::yield_context,  boost::is_void<typename boost::result_of<ConnectHandler (
-            error_code, endpoint_type, endpoint_type, sock_smart_ptr
-       )>::type>::value 
-    || boost::is_same<typename boost::result_of<ConnectHandler (
-            error_code, endpoint_type, endpoint_type, sock_smart_ptr
-       )>::type, bool>::value 
-    || boost::is_same<typename boost::result_of<ConnectHandler (
-            error_code, endpoint_type, endpoint_type, sock_smart_ptr
-       )>::type, error_code>::value 
-    , enabler>::type = enabler ())
-  {
-    HTTP_TRACE_ENTER_CLS();
-    on_connect_handler_ = return_to_type (
-        boost::move (handler),
-        make_error_code (sys::errc::io_error)
-    );
-    return *this;
-  }
-#else
   template <typename ConnectHandler>
   server& 
   on_connect (ConnectHandler handler)
@@ -230,9 +176,6 @@ public:
     return *this;
   }
 	
-#endif
-
-#if 1
   template <typename RequestHandler>
   server& 
   on_request (RequestHandler handler)
@@ -240,77 +183,14 @@ public:
     HTTP_TRACE_ENTER_CLS();
 
   	handlers_.push_back (
-      http::on_request <request_handler_type, request_iterator, sock_smart_ptr> (
+      http::on_request<request_handler_type, request_iterator, sock_smart_ptr>
+      (
   	    boost::move (handler)
   	  )
   	);
 
   	return *this;
   }
-#else
-  template <typename RequestHandler>
-  server& 
-  on_request (RequestHandler handler,
-    typename boost::enable_if<
-      boost::is_same<typename boost::result_of<RequestHandler ()>::type, bool>,
-      enabler>::type = enabler ())
-  {
-    HTTP_TRACE_ENTER_CLS();
-
-#if 0
-  	handlers_.push_back (
-  	 normalize_handler<request_iterator> (handler)
-  	);
-#endif
-
-#if 0
-    // FIXME: debug
-    HTTP_TRACE_NOTIFY("pred(/a/b/c/d/e)");
-  	std::cout << pred (method::Get, boost::as_literal ("/a/b/c/d/e")) << "\n";
-#endif
-  	return *this;
-  }
-
-#if __cplusplus < 201103L
-  template <typename RequestHandler>
-  server& 
-  on_request (RequestHandler handler,
-    typename boost::enable_if<
-      boost::is_same<typename boost::result_of<RequestHandler (
-        http::HttpMethod, uri::parts<request_iterator>, sock_smart_ptr
-      )>::type, bool>,
-      enabler>::type = enabler ())
-  {
-    HTTP_TRACE_ENTER_CLS();
-
-  	handlers_.push_back (
-  	 normalize_handler<request_iterator, sock_smart_ptr, RequestHandler> (
-  	    boost::move (handler)
-  	  )
-  	);
-  	return *this;
-  }
-#else
-  template <typename RequestHandler>
-  server& 
-  on_request (RequestHandler&& handler,
-    typename boost::enable_if<
-      boost::is_same<typename boost::result_of<RequestHandler (
-        http::HttpMethod, uri::parts<request_iterator>, sock_smart_ptr
-      )>::type, bool>,
-      enabler>::type = enabler ())
-  {
-    HTTP_TRACE_ENTER_CLS();
-
-  	handlers_.push_back (
-  	 normalize_handler<request_iterator, sock_smart_ptr> (
-  	    std::forward<RequestHandler> (handler)
-  	  )
-  	);
-  	return *this;
-  }
-#endif
-#endif
 
 protected:
   class socket_dispose
@@ -388,17 +268,5 @@ private:
 
 
 }} // namespace http::_server
-
-#if 0
-http::server srv (io);
-
-srv
-  .listen_on ()
-  .listen_on ()
-  .register_path (cb)
-  .register_path (cb)
-;
-#endif
-
 
 #endif // _HTTP_SERVER_SERVER_H_
