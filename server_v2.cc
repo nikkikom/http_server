@@ -252,10 +252,11 @@ int main ()
     // Coroutine 
     .on_request (
       // predicates::istarts_with (url::path, "/callback/"),
-#if 0 // __cplusplus >= 201300L
+#if __cplusplus >= 201300L
       [] (asio::yield_context yield, http::HttpMethod, auto parsed, auto sock_ptr)
       {
       	std::cout << "CORO HANDLER\n";
+
       	return true;
       }
 #else

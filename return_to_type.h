@@ -299,7 +299,7 @@ template <typename Handler, typename R>
 detail::return_to_type<typename boost::decay<Handler>::type, R>
 return_to_type (Handler&& handler, R err)
 {
-	return detail::return_to_type<Handler,R> (
+	return detail::return_to_type<typename boost::decay<Handler>::type,R> (
 	  std::forward<typename boost::decay<Handler>::type> (handler), err
 	);
 }
