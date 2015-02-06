@@ -1,7 +1,6 @@
-#ifndef _HTTP_CONVERT_CALLBACK_TO_CORO_H_
-#define _HTTP_CONVERT_CALLBACK_TO_CORO_H_
+#ifndef _HTTP_DETAIL_CONVERT_CALLBACK_TO_CORO_H_
+#define _HTTP_DETAIL_CONVERT_CALLBACK_TO_CORO_H_
 #include <http_server/asio.h>
-
 
 #include <boost/type_traits/is_same.hpp>
 #include <boost/type_traits/decay.hpp>
@@ -31,7 +30,8 @@ public:
 	convert_callback_to_coro_helper (CH&& handler)
 	  : handler_ (std::forward<CH>	(handler)) {}
 #else
-  convert_callback_to_coro_helper (_CoroHandler const& handler) : handler_ (handler) {}
+  convert_callback_to_coro_helper (_CoroHandler const& handler) 
+    : handler_ (handler) {}
 #endif
 
   result_type operator() (asio::io_service& io)
@@ -64,7 +64,8 @@ protected:
     typedef void result_type;
 
     convertor (boost::shared_ptr<asio::steady_timer> timer,
-        _CoroHandler const& handler, convert_callback_to_coro_helper::result_type& ret) 
+          _CoroHandler const& handler, 
+          convert_callback_to_coro_helper::result_type& ret) 
       : timer_ (timer)
       , handler_ (handler)
       , ret_ (ret)
@@ -82,27 +83,24 @@ private:
   _CoroHandler handler_;
 };
 
-} // namespace detail
-
 #if __cplusplus >= 201103L
 template <typename CoroHandler>
-detail::convert_callback_to_coro_helper<typename boost::decay<CoroHandler>::type>
+convert_callback_to_coro_helper<typename boost::decay<CoroHandler>::type>
 convert_callback_to_coro (CoroHandler&& ch)
 {
-	return detail::convert_callback_to_coro_helper<
+	return convert_callback_to_coro_helper<
 	  typename boost::decay<CoroHandler>::type> (
 	    std::forward<CoroHandler> (ch));
 }
 #else
 template <typename CoroHandler>
-detail::convert_callback_to_coro_helper<CoroHandler>
+convert_callback_to_coro_helper<CoroHandler>
 convert_callback_to_coro (CoroHandler const& ch)
 {
-	return detail::convert_callback_to_coro_helper<CoroHandler> (ch);
+	return convert_callback_to_coro_helper<CoroHandler> (ch);
 }
 #endif
 
-namespace detail {
 template <typename Handler>
 class convert_on_connect_to_coro_helper
 {
@@ -139,26 +137,26 @@ public:
 private:
   _Handler handler_;
 };
-} // namespace detail
 
 #if __cplusplus >= 201103L
 template <typename CoroHandler>
-detail::convert_on_connect_to_coro_helper<
+convert_on_connect_to_coro_helper<
   typename boost::decay<CoroHandler>::type>
 convert_on_connect_to_coro (CoroHandler&& ch)
 {
-	return detail::convert_on_connect_to_coro_helper<
+	return convert_on_connect_to_coro_helper<
 	    typename boost::decay<CoroHandler>::type> (
 	    std::forward<CoroHandler> (ch));
 }
 #else
 template <typename CoroHandler>
-detail::convert_on_connect_to_coro_helper<CoroHandler>
+convert_on_connect_to_coro_helper<CoroHandler>
 convert_on_connect_to_coro (CoroHandler const& ch)
 {
-	return detail::convert_on_connect_to_coro_helper<CoroHandler> (ch);
+	return convert_on_connect_to_coro_helper<CoroHandler> (ch);
 }
 #endif
 
+} // namespace detail
 } // namespace http
-#endif // _HTTP_CONVERT_CALLBACK_TO_CORO_H_
+#endif // _HTTP_DETAIL_CONVERT_CALLBACK_TO_CORO_H_

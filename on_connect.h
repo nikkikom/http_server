@@ -7,7 +7,7 @@
 #include <http_server/asio.h>
 #include <http_server/trace.h>
 #include <http_server/return_to_type.h>
-#include <http_server/convert_callback_to_coro.h>
+#include <http_server/detail/convert_callback_to_coro.h>
 #include <http_server/detail/enabler.h>
 
 #include <utility>
@@ -32,7 +32,7 @@ R on_connect (Handler&& handler, typename boost::enable_if_c<
 {
 	HTTP_TRACE_ENTER ();
 
-	return convert_on_connect_to_coro (
+	return detail::convert_on_connect_to_coro (
     return_to_type (std::forward<Handler> (handler), 
 	    make_error_code (sys::errc::io_error)
     )
@@ -74,7 +74,7 @@ R on_connect (Handler const& handler, typename boost::enable_if_c<
 {
 	HTTP_TRACE_ENTER ();
 
-	return convert_on_connect_to_coro (
+	return detail::convert_on_connect_to_coro (
     return_to_type (handler, make_error_code (sys::errc::io_error))
   );
 }

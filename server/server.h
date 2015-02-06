@@ -190,14 +190,14 @@ protected:
     	bool ok = false;
     	BOOST_FOREACH (request_handler_type& handler, handlers_)
     	{
-    		if (true == 
-    			  (ok = handler (method::Get, uri::parts<request_iterator> (), sptr)))
-    			break;
+    		ok = handler (method::Get, uri::parts<request_iterator> (), sptr);
+    		if (ok) break;
       }
 
       HTTP_TRACE_NOTIFY ("found request handler=" << ok);
 
-      if (! ok) connect_ec = make_error_code (sys::errc::function_not_supported);
+      if (! ok) 
+      	connect_ec = make_error_code (sys::errc::function_not_supported);
     }
 
     if (connect_ec)
