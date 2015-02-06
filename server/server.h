@@ -13,14 +13,6 @@
 
 #include <boost/noncopyable.hpp>
 
-#if !DISABLE_BOOST_REGEX
-# include <boost/regex.hpp>
-#endif
-
-#if __cplusplus >= 201103L && !DISABLE_STD_REGEX
-# include <regex>
-#endif
-
 #if __cplusplus < 201103L
 # include <boost/bind.hpp>
 # include <boost/bind/protect.hpp>
@@ -128,40 +120,6 @@ public:
 #endif
     );
 
-    return *this;
-  }
-
-  template <typename Handler>
-  server& register_path (std::string const& path, Handler handler)
-  {
-    HTTP_TRACE_ENTER_CLS();
-    return *this;
-  }
-
-#if !DISABLE_BOOST_REGEX
-  template <typename CharT, typename Traits, typename Handler>
-  server& register_path (::boost::basic_regex<CharT,Traits> const& rgx,
-      Handler handler)
-  {
-    HTTP_TRACE_ENTER_CLS();
-    return *this;
-  }
-#endif
-
-#if __cplusplus >= 201103L && !DISABLE_STD_REGEX
-  template <typename CharT, typename Traits, typename Handler>
-  server& register_path (::std::basic_regex<CharT,Traits> const& rgx,
-      Handler handler)
-  {
-    HTTP_TRACE_ENTER_CLS();
-    return *this;
-  }
-#endif
-
-  template <typename Predicate, typename Handler>
-  server& register_path (Predicate pred, Handler handler)
-  {
-    HTTP_TRACE_ENTER_CLS();
     return *this;
   }
 
