@@ -12,7 +12,7 @@ namespace detail { struct final_call_tag {}; }
 
 namespace traits {
 
-struct bad_type;
+struct bad_type {};
 
 // #if __cplusplus < 201103L
 template <class R, class Iterator, class Sock, class Handler, 
@@ -36,7 +36,7 @@ namespace detail {
 template <typename R, class Iterator, class Sock>
 struct on_request_functor
 {
-#if __cplusplus < 201103L
+#if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
 	template <class> struct result {};
 	template <class F, class H> struct result<F(H)>
 	{
@@ -48,12 +48,21 @@ struct on_request_functor
   };
 #endif
 
+#if __cplusplus >= 201103L
+  template <class H>
+  auto operator() (H&& h) const 
+    -> decltype (on_request<R, Iterator, Sock> (std::forward<H> (h)))
+  {
+  	return on_request<R, Iterator, Sock> (std::forward<H> (h));
+  }
+#else
   template <class H>
   typename traits::on_request<R, Iterator, Sock, H>::type
-  operator() (H h) const
+  operator() (H const& h) const
   {
   	return on_request<R, Iterator, Sock> (h);
   }
+#endif
 };
 
 } // namespace detail

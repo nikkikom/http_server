@@ -44,7 +44,7 @@ private:
 	struct enabler {};
   typedef char const* request_iterator;
 	typedef compat::function<bool(
-      sock_smart_ptr
+      sock_smart_ptr, detail::final_call_tag
 	  )> request_handler_type;
 
 	typedef boost::container::stable_vector<request_handler_type> handler_vec;
@@ -140,22 +140,17 @@ public:
   {
     HTTP_TRACE_ENTER_CLS();
 
-#if 0
   	handlers_.push_back (
-      http::on_request<request_handler_type, request_iterator, sock_smart_ptr>
-      (
-  	    boost::move (handler)
-  	  )
+      // do recursive 'on_request' calls until resulting handler signature 
+      // becomes 'bool (sock_smart_ptr)'. All black magic is hidden inside
+      // detail/repeat_until.h but, believe me, you do not want to look at it.
+      
+      detail::repeat_until< bool (sock_smart_ptr, detail::final_call_tag) > (
+        detail::on_request_functor<
+          request_handler_type, request_iterator, sock_smart_ptr> (), 
+        boost::move (handler)
+      )
   	);
-#else
-		// do recursive 'on_request' calls until resulting handler signature 
-		// becomes 'bool (sock_smart_ptr)'. All black magic is hidden inside
-		// detail/repeat_until.h but, believe me, you do not want to look at it.
-		detail::repeat_until< bool (sock_smart_ptr, detail::final_call_tag) > (
-		  detail::on_request_functor<
-		    request_handler_type, request_iterator, sock_smart_ptr> (), 
-		  handler);
-#endif
 
   	return *this;
   }
@@ -201,7 +196,7 @@ protected:
     	BOOST_FOREACH (request_handler_type& handler, handlers_)
     	{
     		// ok = handler (method::Get, uri::parts<request_iterator> (), sptr);
-    		// ok = handler (sptr);
+    		ok = handler (sptr, detail::final_call_tag ());
     		if (ok) break;
       }
 
