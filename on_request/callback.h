@@ -6,10 +6,31 @@
 #include <boost/type_traits/decay.hpp>
 
 #include <http_server/trace.h>
+#include <http_server/on_request.h>
 #include <http_server/uri/parts.h>
 #include <http_server/detail/enabler.h>
 
 namespace http { 
+
+namespace detail {
+template <typename Handler>
+class on_request_callback_helper
+{
+public:
+  typedef typename boost::decay<Handler>::type _Handler;
+
+#if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
+  template <class> struct result {};
+  template <class F, class Iterator, class SmartSock>
+  struct result<F (http::HttpMethod, uri::parts<Iterator>, SmartSock)>
+  {
+    typedef typename boost::result_of<_Handler (
+      asio::yield_context, http::HttpMethod, uri::parts<Iterator>, SmartSock
+    )>::type type;
+  };
+#endif
+
+};
 
 #if __cplusplus >= 201103L
 template <typename R, typename Iterator, typename SmartSock, typename Handler>

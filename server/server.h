@@ -10,6 +10,7 @@
 #include <http_server/tag.h>
 
 #include <http_server/detail/no_pool.h>
+#include <http_server/detail/repeat_until.h>
 
 #include <boost/noncopyable.hpp>
 
@@ -43,9 +44,6 @@ private:
 	struct enabler {};
   typedef char const* request_iterator;
 	typedef compat::function<bool(
-	    HttpMethod, 
-	    uri::parts<request_iterator>,
-      
       sock_smart_ptr
 	  )> request_handler_type;
 
@@ -123,6 +121,7 @@ public:
     return *this;
   }
 
+	// TODO: split into c++03 and c++11 args forwarding
   template <typename ConnectHandler>
   server& 
   on_connect (ConnectHandler handler)
@@ -134,18 +133,29 @@ public:
     return *this;
   }
 	
+	// TODO: split into c++03 and c++11 args forwarding
   template <typename RequestHandler>
   server& 
   on_request (RequestHandler handler)
   {
     HTTP_TRACE_ENTER_CLS();
 
+#if 0
   	handlers_.push_back (
       http::on_request<request_handler_type, request_iterator, sock_smart_ptr>
       (
   	    boost::move (handler)
   	  )
   	);
+#else
+		// do recursive 'on_request' calls until resulting handler signature 
+		// becomes 'bool (sock_smart_ptr)'. All black magic is hidden inside
+		// detail/repeat_until.h but, believe me, you do not want to look at it.
+		detail::repeat_until< bool (sock_smart_ptr, detail::final_call_tag) > (
+		  detail::on_request_functor<
+		    request_handler_type, request_iterator, sock_smart_ptr> (), 
+		  handler);
+#endif
 
   	return *this;
   }
@@ -190,7 +200,8 @@ protected:
     	bool ok = false;
     	BOOST_FOREACH (request_handler_type& handler, handlers_)
     	{
-    		ok = handler (method::Get, uri::parts<request_iterator> (), sptr);
+    		// ok = handler (method::Get, uri::parts<request_iterator> (), sptr);
+    		// ok = handler (sptr);
     		if (ok) break;
       }
 

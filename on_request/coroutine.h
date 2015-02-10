@@ -8,6 +8,7 @@
 #include <http_server/asio.h>
 #include <http_server/trace.h>
 #include <http_server/return_to_type.h>
+#include <http_server/on_request.h>
 #include <http_server/detail/convert_callback_to_coro.h>
 #include <http_server/uri/parts.h>
 #include <http_server/detail/enabler.h>
@@ -72,7 +73,8 @@ private:
 
 #if __cplusplus >= 201103L
 template <typename R, typename Iterator, typename SmartSock, typename Handler>
-R on_request (Handler&& handler, typename boost::enable_if_c<
+detail::convert_on_request_to_coro<Handler>
+on_request (Handler&& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
             asio::yield_context, http::HttpMethod, uri::parts<Iterator>, 
@@ -80,13 +82,13 @@ R on_request (Handler&& handler, typename boost::enable_if_c<
     )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
-	typedef typename boost::decay<Handler>::type _Handler;
-  return detail::convert_on_request_to_coro<_Handler> (
+  return detail::convert_on_request_to_coro<Handler> (
       std::forward<Handler> (handler));
 }
 #else
 template <typename R, typename Iterator, typename SmartSock, typename Handler>
-R on_request (Handler const& handler, typename boost::enable_if_c<
+detail::convert_on_request_to_coro<Handler>
+on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
             asio::yield_context, http::HttpMethod, uri::parts<Iterator>, 
             SmartSock
@@ -96,5 +98,21 @@ R on_request (Handler const& handler, typename boost::enable_if_c<
   return detail::convert_on_request_to_coro<Handler> (handler);
 }
 #endif
+
+// #if __cplusplus < 201103L
+namespace traits {
+
+template <class R, class Iterator, class SmartSock, class Handler>
+struct on_request<R, Iterator, SmartSock, Handler, typename boost::enable_if<
+  boost::is_same<typename boost::result_of<Handler (
+      asio::yield_context, http::HttpMethod, uri::parts<Iterator>, SmartSock
+  )>::type, bool> >::type>
+{
+	typedef detail::convert_on_request_to_coro<Handler> type;
+};
+
+} // namespace traits
+// #endif // C++03
+
 } // namespace http
 #endif // _HTTP_SERVER_ON_REQUEST_COROUTINE_H_
