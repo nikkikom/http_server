@@ -146,8 +146,7 @@ public:
       // detail/repeat_until.h but, believe me, you do not want to look at it.
       
       detail::repeat_until< bool (sock_smart_ptr, detail::final_call_tag) > (
-        detail::on_request_functor<
-          request_handler_type, request_iterator, sock_smart_ptr> (), 
+        detail::on_request_functor<request_iterator, sock_smart_ptr> (), 
         boost::move (handler)
       )
   	);

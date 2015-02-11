@@ -33,19 +33,24 @@ public:
 };
 
 #if __cplusplus >= 201103L
-template <typename R, typename Iterator, typename SmartSock, typename Handler>
-R on_request (Handler&& handler, typename boost::enable_if_c<
+template <typename Iterator, typename SmartSock, typename Handler>
+auto 
+on_request (Handler&& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
             http::HttpMethod, uri::parts<Iterator>, SmartSock
     )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
+#if __cplusplus < 201300L
+      -> decltype (handler)
+#endif
 {
 	HTTP_TRACE_ENTER ();
   return handler;
 }
 #else
-template <typename R, typename Iterator, typename SmartSock, typename Handler>
-R on_request (Handler const& handler, typename boost::enable_if_c<
+template <typename Iterator, typename SmartSock, typename Handler>
+Handler
+on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
             http::HttpMethod, uri::parts<Iterator>, SmartSock
     )>::type, bool>::value, detail::enabler>::type = detail::enabler ())

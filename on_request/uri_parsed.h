@@ -62,8 +62,12 @@ private:
 }
 
 #if __cplusplus >= 201103L
-template <typename R, typename Iterator, typename SmartSock, typename Handler>
+template <typename Iterator, typename SmartSock, typename Handler>
+#if __cplusplus < 201300L
 detail::on_request_uri_parsed<Iterator,Handler>
+#else
+auto
+#endif
 on_request (Handler&& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
@@ -75,7 +79,7 @@ on_request (Handler&& handler, typename boost::enable_if_c<
       std::forward<Handler> (handler));
 }
 #else
-template <typename R, typename Iterator, typename SmartSock, typename Handler>
+template <typename Iterator, typename SmartSock, typename Handler>
 detail::on_request_uri_parsed<Iterator,Handler> 
 on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
@@ -90,8 +94,8 @@ on_request (Handler const& handler, typename boost::enable_if_c<
 // #if __cplusplus < 201103L
 namespace traits {
 
-template <class R, class Iterator, class SmartSock, class Handler>
-struct on_request<R, Iterator, SmartSock, Handler, typename boost::enable_if<
+template <class Iterator, class SmartSock, class Handler>
+struct on_request<Iterator, SmartSock, Handler, typename boost::enable_if<
   boost::is_same<typename boost::result_of<Handler (
     http::HttpMethod, uri::parts<Iterator>, SmartSock
   )>::type, bool> >::type>
