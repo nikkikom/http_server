@@ -4,6 +4,7 @@
 #include <boost/utility/result_of.hpp>
 #include <boost/type_traits/is_same.hpp>
 #include <boost/type_traits/decay.hpp>
+#include <boost/logic/tribool.hpp>
 
 #include <http_server/trace.h>
 #include <http_server/on_request.h>

@@ -21,6 +21,7 @@
 #endif
 
 #include <boost/foreach.hpp>
+#include <boost/logic/tribool.hpp>
 #include <boost/container/stable_vector.hpp>
 
 #include <utility> // std::move, forward, etc
@@ -43,8 +44,8 @@ public:
 private:
 	struct enabler {};
   typedef char const* request_iterator;
-	typedef compat::function<bool(
-      sock_smart_ptr, detail::final_call_tag
+	typedef compat::function<boost::tribool (
+      boost::function<void(bool)>, sock_smart_ptr, detail::final_call_tag
 	  )> request_handler_type;
 
 	typedef boost::container::stable_vector<request_handler_type> handler_vec;
@@ -142,12 +143,17 @@ public:
 
   	handlers_.push_back (
       // do recursive 'on_request' calls until resulting handler signature 
-      // becomes 'bool (sock_smart_ptr)'. All black magic is hidden inside
-      // detail/repeat_until.h but, believe me, you do not want to look at it.
+      // becomes 'tribool (handler(bool), sock_smart_ptr)'. 
+      // All black magic is hidden inside detail/repeat_until.h and, 
+      // believe me, you do not want to look at it.
       
-      detail::repeat_until< bool (sock_smart_ptr, detail::final_call_tag) > (
-        detail::on_request_functor<request_iterator, sock_smart_ptr> (), 
-        boost::move (handler)
+      detail::repeat_until< boost::tribool (
+          boost::function<void(bool)>, sock_smart_ptr, detail::final_call_tag
+        ) > 
+      (
+          detail::on_request_functor<
+              boost::function<void(bool)>, request_iterator, sock_smart_ptr
+          > (), boost::move (handler)
       )
   	);
 
@@ -174,6 +180,49 @@ protected:
     }
   };
 
+  void 
+  handle_user_request_accept (typename handler_vec::const_iterator next_iter,
+      sock_smart_ptr sptr, bool ok)
+  {
+    HTTP_TRACE_ENTER_CLS();
+
+    while (! ok && next_iter != handlers_.end ())
+    {
+    	// repeat
+    	boost::tribool ret;
+
+    	request_handler_type& user_handler = *++next_iter;
+
+      ok = ret = user_handler (
+#if __cplusplus < 201103L
+          boost::bind (&server::handle_user_request_accept, this,
+            next_iter, sptr, _1),
+#else
+					[this, next_iter, sptr] (bool ok)
+					{ 
+						handle_user_request_accept (next_iter, sptr, ok);
+					},
+#endif
+          sptr, detail::final_call_tag ());
+
+      if (boost::indeterminate (ret)) return;
+    }
+
+    if (ok)
+    {
+      HTTP_TRACE_NOTIFY ("found request handler");
+      return;
+    }
+
+    if (next_iter == handlers_.end ())
+    {
+      HTTP_TRACE_NOTIFY ("not found request handler");
+      return;
+    }
+
+    throw (std::runtime_error ("should not happen"));
+  }
+
   void handle_accept (error_code const& ec, 
       endpoint_type const& local_ep, endpoint_type const& remote_ep,
       socket_ptr sock)
@@ -188,27 +237,13 @@ protected:
     error_code connect_ec = 
         on_connect_handler_ (ec, local_ep, remote_ep, sptr);
 
-    if (! connect_ec)
-    {
-    	// continue 
-    	bool ok = false;
-    	BOOST_FOREACH (request_handler_type& handler, handlers_)
-    	{
-    		// ok = handler (method::Get, uri::parts<request_iterator> (), sptr);
-    		ok = handler (sptr, detail::final_call_tag ());
-    		if (ok) break;
-      }
-
-      HTTP_TRACE_NOTIFY ("found request handler=" << ok);
-
-      if (! ok) 
-      	connect_ec = make_error_code (sys::errc::function_not_supported);
-    }
-
     if (connect_ec)
     {
     	// print error, close connection
+    	return;
     }
+
+    handle_user_request_accept (handlers_.begin (), sptr, false);
   }
 
 protected:

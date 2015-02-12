@@ -8,6 +8,7 @@
 #include "trace.h"
 
 #include <boost/asio.hpp>
+#include <boost/logic/tribool.hpp>
 
 namespace sys = ::boost::system;
 using sys::error_code;
@@ -121,16 +122,19 @@ class my_coro_handler
 public:
 #if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
 	template <class> struct result {};
-	template <class F, class Iterator, class SmartSock> 
-	struct result<F (asio::yield_context,http::HttpMethod,http::uri::parts<Iterator>,SmartSock)>
-	{ typedef bool type; };
+	template <class F, class R, class Iterator, class SmartSock> 
+	struct result<F (R r, // asio::yield_context, 
+	    http::HttpMethod, http::uri::parts<Iterator>,SmartSock)>
+	{ typedef boost::tribool type; };
 #endif
 
-	template <typename Iterator, typename SmartSock>
-	bool operator() (asio::yield_context y,http::HttpMethod m, 
+	template <class R, typename Iterator, typename SmartSock>
+	boost::tribool operator() (R r, // asio::yield_context y,
+	    http::HttpMethod m, 
 	    http::uri::parts<Iterator> parsed, SmartSock sock) const
 	{
-		return true;
+		// r (true);
+		return boost::indeterminate;
   }
 
 };
@@ -253,11 +257,13 @@ int main ()
     .on_request (
       // predicates::istarts_with (url::path, "/callback/"),
 #if __cplusplus >= 201300L
-      [] (asio::yield_context yield, http::HttpMethod, auto parsed, auto sock_ptr)
+      [] (int r, asio::yield_context yield, 
+          http::HttpMethod, auto parsed, auto sock_ptr) -> boost::tribool
       {
       	std::cout << "CORO HANDLER\n";
 
-      	return true;
+        // r (true);
+      	return boost::indeterminate;
       }
 #else
 			my_coro_handler ()
