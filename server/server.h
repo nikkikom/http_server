@@ -20,7 +20,6 @@
 # include <boost/move/move.hpp>
 #endif
 
-#include <boost/foreach.hpp>
 #include <boost/logic/tribool.hpp>
 #include <boost/container/stable_vector.hpp>
 
@@ -183,9 +182,36 @@ protected:
     }
   };
 
+  struct handle_user_request_accept_binder
+  {
+  	template <class> struct result {};
+  	template <class F> 
+  	struct result<F(boost::function<void(bool)>, http::HttpMethod, 
+  	  uri::parts<request_iterator>, sock_smart_ptr)>
+  	{
+  		typedef boost::tribool type;
+    };
+
+  	server* that_;
+  	typename handler_vec::const_iterator next_iter_;
+
+    handle_user_request_accept_binder (server* that, 
+      typename handler_vec::const_iterator next_iter)
+      : that_ (that), next_iter_ (next_iter) {}
+
+    boost::tribool
+    operator () (boost::function<void(bool)> result_functor, 
+					  http::HttpMethod method, uri::parts<request_iterator> parsed,
+					  sock_smart_ptr sptr)
+		{
+      return that_->handle_user_request_accept (result_functor, method, 
+        parsed, sptr, next_iter_, false);
+    }
+	};
+
   boost::tribool 
   handle_user_request_accept (boost::function<void(bool)> result_functor, 
-    http::HttpMethod method, uri::parts<request_iterator> const& parsed,
+    http::HttpMethod method, uri::parts<request_iterator> parsed,
     sock_smart_ptr sptr,
     typename handler_vec::const_iterator next_iter, bool ok)
   {
@@ -265,15 +291,14 @@ protected:
     // tree contained parsed and not-yet-parsed entries.
 
     // Parse http request
-    boost::tribool parse_ok = detail::repeat_until< boost::tribool (
-        boost::function<void(bool)>, sock_smart_ptr, detail::final_call_tag
-      ) > 
-    (
-        detail::on_request_functor<
-            boost::function<void(bool)>, request_iterator, sock_smart_ptr
-        > (), 
+    boost::tribool parse_ok = http::on_request<
+      boost::function<void(bool)>, request_iterator, sock_smart_ptr
+    > (
 #if __cplusplus < 201103L
-          // not worth to use lambda just for proxy ?
+          // For some reasons, compiler fails to deduce arguments properly 
+          // for the bind wrapper objects. So I have to create my own lambda-like
+          // wrapper (C++03 should die).
+#if 0
           boost::bind<boost::tribool> (
               &server::handle_user_request_accept, this
             , _1 // ResultF
@@ -284,6 +309,9 @@ protected:
             , false
           )
 #else
+					handle_user_request_accept_binder (this, handlers_.begin ())
+#endif
+#else
 					[this] (boost::function<void(bool)> result_functor, 
 					  http::HttpMethod method, uri::parts<request_iterator> parsed,
 					  sock_smart_ptr sptr) -> boost::tribool
@@ -292,11 +320,11 @@ protected:
 						  parsed, sptr, handlers_.begin (), false);
           }
 #endif
-            
-  	)
+   )
   	( 
   	  boost::bind (&server::handle_http_parse, this, _1),
-      sptr, detail::final_call_tag ()
+      sptr, 
+      detail::final_call_tag ()
     );
 
   	if (! parse_ok) 

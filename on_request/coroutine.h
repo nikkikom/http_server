@@ -108,13 +108,15 @@ on_request (Handler&& handler, typename boost::enable_if_c<
 #else
 template <class ResultF, class Iterator, class SmartSock, class Handler>
 detail::convert_on_request_to_coro<Handler>
-on_request (Handler const& handler, typename boost::enable_if_c<
+on_request (Handler const& handler, typename boost::enable_if<
       boost::is_same<typename boost::result_of<Handler (
               ResultF, asio::yield_context, 
               http::HttpMethod, uri::parts<Iterator>, SmartSock
-      )>::type, boost::tribool>::value
+      )>::type, boost::tribool>
+#if 0
   &&  boost::is_same<typename boost::result_of<
           ResultF(bool)>::type, void>::value
+#endif
     , detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
