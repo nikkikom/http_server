@@ -45,7 +45,9 @@ private:
 	struct enabler {};
   typedef char const* request_iterator;
 	typedef compat::function<boost::tribool (
-      boost::function<void(bool)>, sock_smart_ptr, detail::final_call_tag
+      boost::function<void(bool)>, 
+      http::HttpMethod, uri::parts<request_iterator>, sock_smart_ptr
+      // , detail::final_call_tag
 	  )> request_handler_type;
 
 	typedef boost::container::stable_vector<request_handler_type> handler_vec;
@@ -148,7 +150,8 @@ public:
       // believe me, you do not want to look at it.
       
       detail::repeat_until< boost::tribool (
-          boost::function<void(bool)>, sock_smart_ptr, detail::final_call_tag
+          boost::function<void(bool)>, http::HttpMethod, 
+          uri::parts<request_iterator>, sock_smart_ptr
         ) > 
       (
           detail::on_request_functor<
@@ -180,9 +183,11 @@ protected:
     }
   };
 
-  void 
-  handle_user_request_accept (typename handler_vec::const_iterator next_iter,
-      sock_smart_ptr sptr, bool ok)
+  boost::tribool 
+  handle_user_request_accept (boost::function<void(bool)> result_functor, 
+    http::HttpMethod method, uri::parts<request_iterator> const& parsed,
+    sock_smart_ptr sptr,
+    typename handler_vec::const_iterator next_iter, bool ok)
   {
     HTTP_TRACE_ENTER_CLS();
 
@@ -191,38 +196,51 @@ protected:
     	// repeat
     	boost::tribool ret;
 
-    	request_handler_type& user_handler = *++next_iter;
+    	request_handler_type& user_handler = *next_iter++;
 
       ok = ret = user_handler (
 #if __cplusplus < 201103L
           boost::bind (&server::handle_user_request_accept, this,
-            next_iter, sptr, _1),
+            result_functor, method, parsed, sptr, next_iter, _1),
 #else
-					[this, next_iter, sptr] (bool ok)
+					// TODO: move result_functor in C++14
+					[this, next_iter, result_functor, method, parsed, sptr] (bool ok)
 					{ 
-						handle_user_request_accept (next_iter, sptr, ok);
+						handle_user_request_accept (result_functor, method, parsed,
+						                            sptr, next_iter, ok);
 					},
 #endif
-          sptr, detail::final_call_tag ());
+					method, parsed, sptr
+          // sptr, detail::final_call_tag ()
+      );
 
-      if (boost::indeterminate (ret)) return;
+      if (boost::indeterminate (ret)) return ret;
     }
 
     if (ok)
     {
       HTTP_TRACE_NOTIFY ("found request handler");
-      return;
+      return true;
     }
 
     if (next_iter == handlers_.end ())
     {
       HTTP_TRACE_NOTIFY ("not found request handler");
-      return;
+      return false;
     }
 
     throw (std::runtime_error ("should not happen"));
   }
 
+  boost::tribool 
+  handle_user (
+    boost::function<void(bool)> result_functor, http::HttpMethod,
+    uri::parts<request_iterator> const&
+  )
+  {
+  	return true;
+  }
+ 
   void handle_accept (error_code const& ec, 
       endpoint_type const& local_ep, endpoint_type const& remote_ep,
       socket_ptr sock)
@@ -243,7 +261,63 @@ protected:
     	return;
     }
 
-    handle_user_request_accept (handlers_.begin (), sptr, false);
+    // TODO: implement more clever version, with handlers ordered list and
+    // tree contained parsed and not-yet-parsed entries.
+
+    // Parse http request
+    boost::tribool parse_ok = detail::repeat_until< boost::tribool (
+        boost::function<void(bool)>, sock_smart_ptr, detail::final_call_tag
+      ) > 
+    (
+        detail::on_request_functor<
+            boost::function<void(bool)>, request_iterator, sock_smart_ptr
+        > (), 
+#if __cplusplus < 201103L
+          // not worth to use lambda just for proxy ?
+          boost::bind<boost::tribool> (
+              &server::handle_user_request_accept, this
+            , _1 // ResultF
+            , _2 // HttpMethod
+            , _3 // uri::parts
+            , _4 // SmartSock
+            , handlers_.begin ()
+            , false
+          )
+#else
+					[this] (boost::function<void(bool)> result_functor, 
+					  http::HttpMethod method, uri::parts<request_iterator> parsed,
+					  sock_smart_ptr sptr) -> boost::tribool
+					{
+						return handle_user_request_accept (result_functor, method, 
+						  parsed, sptr, handlers_.begin (), false);
+          }
+#endif
+            
+  	)
+  	( 
+  	  boost::bind (&server::handle_http_parse, this, _1),
+      sptr, detail::final_call_tag ()
+    );
+
+  	if (! parse_ok) 
+    {
+      HTTP_TRACE_NOTIFY ("HTTP request line parse error");
+      return;
+    }
+
+  	if (parse_ok) 
+    {
+      HTTP_TRACE_NOTIFY ("HTTP request line parse ok");
+      return;
+    }
+
+    // parse_ok == boost::indeterminate, do nothing
+  }
+
+  void handle_http_parse (bool ok)
+  {
+    HTTP_TRACE_ENTER_CLS();
+    HTTP_TRACE_NOTIFY ("HTTP request line parse " << ok << " (delayed)");
   }
 
 protected:

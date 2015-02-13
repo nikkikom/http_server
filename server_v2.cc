@@ -129,7 +129,7 @@ public:
 #endif
 
 	template <class R, typename Iterator, typename SmartSock>
-	boost::tribool operator() (R r, // asio::yield_context y,
+	boost::tribool operator() (R r, asio::yield_context y,
 	    http::HttpMethod m, 
 	    http::uri::parts<Iterator> parsed, SmartSock sock) const
 	{
@@ -257,7 +257,7 @@ int main ()
     .on_request (
       // predicates::istarts_with (url::path, "/callback/"),
 #if __cplusplus >= 201300L
-      [] (int r, asio::yield_context yield, 
+      [] (auto r, asio::yield_context yield, 
           http::HttpMethod, auto parsed, auto sock_ptr) -> boost::tribool
       {
       	std::cout << "CORO HANDLER\n";
