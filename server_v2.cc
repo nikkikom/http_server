@@ -262,7 +262,7 @@ int main ()
       {
       	std::cout << "CORO HANDLER\n";
 
-        // r (true);
+        r (true);
       	return boost::indeterminate;
       }
 #else

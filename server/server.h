@@ -109,7 +109,7 @@ public:
     manager_.listen_on (ep, 
 #if __cplusplus < 201103L
       boost::protect (
-        boost::bind (&server::handle_accept, this, _1, ep, _2, _3)
+        boost::bind (&server::handle_accept_tls, this, _1, ep, _2, _3)
       )
 #else
 			[this, ep] 
@@ -182,6 +182,7 @@ protected:
     }
   };
 
+#if __cplusplus < 201103L
   struct handle_user_request_accept_binder
   {
   	template <class> struct result {};
@@ -208,6 +209,7 @@ protected:
         parsed, sptr, next_iter_, false);
     }
 	};
+#endif
 
   boost::tribool 
   handle_user_request_accept (boost::function<void(bool)> result_functor, 
@@ -297,7 +299,7 @@ protected:
 #if __cplusplus < 201103L
           // For some reasons, compiler fails to deduce arguments properly 
           // for the bind wrapper objects. So I have to create my own lambda-like
-          // wrapper (C++03 should die).
+          // wrapper (C++11 can use lambda here, C++03 should die).
 #if 0
           boost::bind<boost::tribool> (
               &server::handle_user_request_accept, this
