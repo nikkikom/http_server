@@ -253,7 +253,7 @@ int main ()
     .on_request (
       // predicates::istarts_with (url::path, "/callback/"),
 #if __cplusplus >= 201300L
-      [] (auto on_error, asio::yield_context yield, 
+      [] (auto on_error, asio::yield_context yield,
           http::HttpMethod, auto parsed, auto sock_ptr)
       {
       	std::cout << "CORO HANDLER\n";

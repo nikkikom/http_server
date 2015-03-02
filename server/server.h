@@ -47,7 +47,8 @@ private:
      error_handler_type;
       
   typedef char const* request_iterator;
-	typedef compat::function<bool(
+
+	typedef compat::function<bool (
       error_handler_type, sock_smart_ptr, detail::final_call_tag
 	  )> request_handler_type;
 
@@ -186,7 +187,7 @@ public:
         bool (error_handler_type, sock_smart_ptr, detail::final_call_tag) 
       > (
           detail::on_request_functor<
-            request_iterator, endpoint_type, sock_smart_ptr
+            error_handler_type, request_iterator, sock_smart_ptr
           > ()
         , boost::move (handler)
       )
@@ -209,7 +210,7 @@ public:
         bool (error_handler_type, sock_smart_ptr, detail::final_call_tag) 
       > (
           detail::on_request_functor<
-            request_iterator, endpoint_type, sock_smart_ptr
+            error_handler_type, request_iterator, sock_smart_ptr
           > () 
         , std::forward<RequestHandler> (handler)
       )
