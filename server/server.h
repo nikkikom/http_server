@@ -272,7 +272,8 @@ protected:
     if (connect_ec)
     {
     	// print error, close connection
-    	on_error_handler_ (connect_ec, local_ep, remote_ep, sptr);
+    	on_error_handler_ (connect_ec, false, std::string (), 
+    	        local_ep, remote_ep, sptr);
     }
   }
 
@@ -283,9 +284,12 @@ protected:
   	return error_code ();
   }
 
-  static void on_error_default (error_code const&, endpoint_type const&,
-      endpoint_type const&, sock_smart_ptr)
+  static bool on_error_default (error_code const&, bool recoverable, 
+      std::string const&, endpoint_type const&, endpoint_type const&, 
+      sock_smart_ptr)
   {
+  	// try to recover if possible
+  	return recoverable;
   }
 
 private:
