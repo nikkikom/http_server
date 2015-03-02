@@ -124,13 +124,15 @@ public:
   template <typename Endpoint, typename SmartSock>
 	typename boost::result_of<
 	  _Handler (asio::yield_context, error_code, Endpoint, Endpoint, SmartSock)
-	>::type operator() (error_code const& ec, Endpoint const& local,
-	                        Endpoint const remote, SmartSock sock)
+	>::type operator() (
+	    error_code const& ec, Endpoint const& local,
+	    Endpoint const remote, SmartSock sock)
 	{
 		using boost::cref;
 
 	  return convert_callback_to_coro (
-	    boost::bind (handler_, _1, cref (ec), cref (local), cref (remote), sock)
+	    boost::bind (handler_, _1, cref (ec), cref (local), 
+	                  cref (remote), sock)
 	  ) (sock->get_io_service ());
   } 
 

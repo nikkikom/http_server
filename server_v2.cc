@@ -121,13 +121,13 @@ class my_coro_handler
 public:
 #if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
 	template <class> struct result {};
-	template <class F, class Iterator, class SmartSock> 
-	struct result<F (asio::yield_context,http::HttpMethod,http::uri::parts<Iterator>,SmartSock)>
+	template <class F, class OnError, class Iterator, class SmartSock> 
+	struct result<F (OnError,asio::yield_context,http::HttpMethod,http::uri::parts<Iterator>,SmartSock)>
 	{ typedef bool type; };
 #endif
 
-	template <typename Iterator, typename SmartSock>
-	bool operator() (asio::yield_context y,http::HttpMethod m, 
+	template <class OnError, typename Iterator, typename SmartSock>
+	bool operator() (OnError err, asio::yield_context y,http::HttpMethod m, 
 	    http::uri::parts<Iterator> parsed, SmartSock sock) const
 	{
 		return true;
@@ -253,10 +253,10 @@ int main ()
     .on_request (
       // predicates::istarts_with (url::path, "/callback/"),
 #if __cplusplus >= 201300L
-      [] (asio::yield_context yield, http::HttpMethod, auto parsed, auto sock_ptr)
+      [] (auto on_error, asio::yield_context yield, 
+          http::HttpMethod, auto parsed, auto sock_ptr)
       {
       	std::cout << "CORO HANDLER\n";
-
       	return true;
       }
 #else

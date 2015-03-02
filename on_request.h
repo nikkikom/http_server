@@ -15,7 +15,7 @@ namespace traits {
 struct bad_type {};
 
 // #if __cplusplus < 201103L
-template <class Iterator, class Sock, class Handler, 
+template <class Iterator, class Endpoint, class Sock, class Handler, 
   class Enabler = void> 
 struct on_request 
 {
@@ -33,14 +33,14 @@ struct on_request
 namespace http {
 namespace detail {
 
-template <class Iterator, class Sock>
+template <class Iterator, class Endpoint, class Sock>
 struct on_request_functor
 {
 #if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
 	template <class> struct result {};
 	template <class F, class H> struct result<F(H)>
 	{
-		typedef typename traits::on_request<Iterator,Sock,H>::type type;
+		typedef typename traits::on_request<Iterator,Endpoint,Sock,H>::type type;
 
     BOOST_STATIC_ASSERT_MSG ((!boost::is_same<type, traits::bad_type>::value),
       "Cannot find 'on_request' handler with such signature");
@@ -52,17 +52,17 @@ struct on_request_functor
   template <class H>
   auto operator() (H&& h) const 
 #if __cplusplus < 201300L
-    -> decltype (on_request<Iterator, Sock> (std::forward<H> (h)))
+    -> decltype (on_request<Iterator,Endpoint,Sock> (std::forward<H> (h)))
 #endif
   {
-  	return on_request<Iterator, Sock> (std::forward<H> (h));
+  	return on_request<Iterator,Endpoint,Sock> (std::forward<H> (h));
   }
 #else
   template <class H>
-  typename traits::on_request<Iterator, Sock, H>::type
+  typename traits::on_request<Iterator,Endpoint,Sock,H>::type
   operator() (H const& h) const
   {
-  	return on_request<Iterator, Sock> (h);
+  	return on_request<Iterator,Endpoint,Sock> (h);
   }
 #endif
 };

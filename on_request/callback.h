@@ -6,6 +6,7 @@
 #include <boost/type_traits/decay.hpp>
 
 #include <http_server/trace.h>
+#include <http_server/error_handler.h>
 #include <http_server/on_request.h>
 #include <http_server/uri/parts.h>
 #include <http_server/detail/enabler.h>
@@ -21,10 +22,13 @@ public:
 
 #if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
   template <class> struct result {};
-  template <class F, class Iterator, class SmartSock>
-  struct result<F (http::HttpMethod, uri::parts<Iterator>, SmartSock)>
-  {
+  template <class F, class Iterator, class Endpoint, class SmartSock>
+  struct result<F (
+      typename error_handler<Endpoint,SmartSock>::type, 
+      http::HttpMethod, uri::parts<Iterator>, SmartSock
+  )> {
     typedef typename boost::result_of<_Handler (
+      typename error_handler<Endpoint,SmartSock>::type,
       asio::yield_context, http::HttpMethod, uri::parts<Iterator>, SmartSock
     )>::type type;
   };
@@ -33,11 +37,12 @@ public:
 };
 
 #if __cplusplus >= 201103L
-template <typename Iterator, typename SmartSock, typename Handler>
+template <class Iterator, class Endpoint, class SmartSock, class Handler>
 auto 
 on_request (Handler&& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
+            typename error_handler<Endpoint,SmartSock>::type,
             http::HttpMethod, uri::parts<Iterator>, SmartSock
     )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
 #if __cplusplus < 201300L
@@ -48,10 +53,11 @@ on_request (Handler&& handler, typename boost::enable_if_c<
   return handler;
 }
 #else
-template <typename Iterator, typename SmartSock, typename Handler>
+template <class Iterator, class Endpoint, class SmartSock, class Handler>
 Handler
 on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
+            typename error_handler<Endpoint,SmartSock>::type, 
             http::HttpMethod, uri::parts<Iterator>, SmartSock
     )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
 {

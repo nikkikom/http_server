@@ -5,6 +5,8 @@
 #include <http_server/compat.h>
 #include <http_server/method.h>
 #include <http_server/server/io_manager.h>
+#include <http_server/error.h>
+#include <http_server/error_handler.h>
 #include <http_server/on_connect.h>
 #include <http_server/on_request.h>
 #include <http_server/tag.h>
@@ -41,10 +43,12 @@ public:
   typedef typename manager_type::endpoint_type endpoint_type;
 
 private:
-	struct enabler {};
+  typedef typename error_handler<endpoint_type, sock_smart_ptr>::type 
+     error_handler_type;
+      
   typedef char const* request_iterator;
 	typedef compat::function<bool(
-      sock_smart_ptr, detail::final_call_tag
+      error_handler_type, sock_smart_ptr, detail::final_call_tag
 	  )> request_handler_type;
 
 	typedef boost::container::stable_vector<request_handler_type> handler_vec;
@@ -54,6 +58,7 @@ public:
     : manager_ (io)
     , pool_ (io)
     , on_connect_handler_ (&server::on_connect_default)
+    , on_error_handler_ (&server::on_error_default)
   {
   	HTTP_TRACE_ENTER_CLS();
   }
@@ -121,7 +126,7 @@ public:
     return *this;
   }
 
-	// TODO: split into c++03 and c++11 args forwarding
+#if __cplusplus < 201103L
   template <typename ConnectHandler>
   server& 
   on_connect (ConnectHandler handler)
@@ -132,8 +137,40 @@ public:
             boost::move (handler));
     return *this;
   }
+#else
+  template <typename ConnectHandler>
+  server& 
+  on_connect (ConnectHandler&& handler)
+  {
+    HTTP_TRACE_ENTER_CLS();
+    on_connect_handler_ = 
+        http::on_connect<connect_handler_type, endpoint_type, sock_smart_ptr> (
+            std::forward<ConnectHandler> (handler));
+    return *this;
+  }
+#endif
 	
-	// TODO: split into c++03 and c++11 args forwarding
+#if __cplusplus < 201103L
+  template <typename ErrorHandler>
+  server& 
+  on_error (ErrorHandler handler)
+  {
+    HTTP_TRACE_ENTER_CLS();
+    on_error_handler_ = boost::move (handler);
+    return *this;
+  }
+#else
+  template <typename ErrorHandler>
+  server& 
+  on_error (ErrorHandler&& handler)
+  {
+    HTTP_TRACE_ENTER_CLS();
+    on_error_handler_ = std::forward<ErrorHandler> (handler);
+    return *this;
+  }
+#endif
+	
+#if __cplusplus < 201103L
   template <typename RequestHandler>
   server& 
   on_request (RequestHandler handler)
@@ -145,15 +182,42 @@ public:
       // becomes 'bool (sock_smart_ptr)'. All black magic is hidden inside
       // detail/repeat_until.h but, believe me, you do not want to look at it.
       
-      detail::repeat_until< bool (sock_smart_ptr, detail::final_call_tag) > (
-        detail::on_request_functor<request_iterator, sock_smart_ptr> (), 
-        boost::move (handler)
+      detail::repeat_until< 
+        bool (error_handler_type, sock_smart_ptr, detail::final_call_tag) 
+      > (
+          detail::on_request_functor<
+            request_iterator, endpoint_type, sock_smart_ptr
+          > ()
+        , boost::move (handler)
       )
   	);
 
   	return *this;
   }
+#else
+  template <typename RequestHandler>
+  server& on_request (RequestHandler&& handler)
+  {
+    HTTP_TRACE_ENTER_CLS();
 
+  	handlers_.push_back (
+      // do recursive 'on_request' calls until resulting handler signature 
+      // becomes 'bool (sock_smart_ptr)'. All black magic is hidden inside
+      // detail/repeat_until.h but, believe me, you do not want to look at it.
+      
+      detail::repeat_until<
+        bool (error_handler_type, sock_smart_ptr, detail::final_call_tag) 
+      > (
+          detail::on_request_functor<
+            request_iterator, endpoint_type, sock_smart_ptr
+          > () 
+        , std::forward<RequestHandler> (handler)
+      )
+  	);
+
+  	return *this;
+  }
+#endif
 protected:
   class socket_dispose
   {
@@ -195,7 +259,7 @@ protected:
     	BOOST_FOREACH (request_handler_type& handler, handlers_)
     	{
     		// ok = handler (method::Get, uri::parts<request_iterator> (), sptr);
-    		ok = handler (sptr, detail::final_call_tag ());
+    		ok = handler (on_error_handler_, sptr, detail::final_call_tag ());
     		if (ok) break;
       }
 
@@ -208,25 +272,32 @@ protected:
     if (connect_ec)
     {
     	// print error, close connection
+    	on_error_handler_ (connect_ec, local_ep, remote_ep, sptr);
     }
   }
 
 protected:
   static error_code on_connect_default (error_code const&, endpoint_type const&,
-      endpoint_type const&, sock_smart_ptr)
+      endpoint_type const&, sock_smart_ptr) // constexpr
   {
   	return error_code ();
   }
 
-private:
-  manager_type manager_;
-  pool_type pool_;
-  handler_vec handlers_;
+  static void on_error_default (error_code const&, endpoint_type const&,
+      endpoint_type const&, sock_smart_ptr)
+  {
+  }
 
+private:
   typedef compat::function<error_code (error_code const&, endpoint_type const&, 
       endpoint_type const&, sock_smart_ptr)> connect_handler_type;
-      
-  connect_handler_type on_connect_handler_;
+
+  manager_type          manager_;
+  pool_type             pool_;
+  handler_vec           handlers_;
+
+  error_handler_type    on_error_handler_;
+  connect_handler_type  on_connect_handler_;
 };
 
 

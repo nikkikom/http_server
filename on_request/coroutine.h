@@ -23,7 +23,7 @@ using sys::error_code;
 
 namespace detail {
 
-template <typename Handler>
+template <class Endpoint, class Handler>
 class convert_on_request_to_coro
 {
 public:
@@ -32,9 +32,12 @@ public:
 #if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
   template <class> struct result {};
   template <class F, class Iterator, class SmartSock> 
-  struct result<F (http::HttpMethod, uri::parts<Iterator>, SmartSock)>
-  {
+  struct result<F (
+      typename error_handler<Endpoint, SmartSock>::type, 
+      http::HttpMethod, uri::parts<Iterator>, SmartSock
+  )> {
   	typedef typename boost::result_of<_Handler (
+  	  typename error_handler<Endpoint, SmartSock>::type,
   	  asio::yield_context, http::HttpMethod, uri::parts<Iterator>, SmartSock
   	)>::type type;
   };
@@ -48,20 +51,27 @@ public:
   convert_on_request_to_coro (_Handler const& h) : handler_ (h) {}
 #endif
 
-  template <typename Iterator, typename SmartSock>
+  template <class Iterator, class SmartSock>
   typename boost::result_of<_Handler (
+    typename error_handler<Endpoint, SmartSock>::type,
     asio::yield_context, http::HttpMethod, uri::parts<Iterator>, SmartSock
   )>::type 
-  operator() (http::HttpMethod method, uri::parts<Iterator> const& parsed,
+  operator() (typename error_handler<Endpoint, SmartSock>::type error_h, 
+    http::HttpMethod method, uri::parts<Iterator> const& parsed,
     SmartSock sock)
   {
     typedef typename boost::result_of<_Handler (
+      typename error_handler<Endpoint, SmartSock>::type,
       asio::yield_context, http::HttpMethod, uri::parts<Iterator>, SmartSock
     )>::type result_type;
 
   	using boost::cref;
+
+  	// FIXME: forward error_h for C++
   	return detail::convert_callback_to_coro (
-  	  boost::bind<result_type> (handler_, _1, method, cref (parsed), sock)
+  	  boost::bind<result_type> (
+  	      handler_, error_h, _1, method, cref (parsed), sock
+  	  )
   	) (sock->get_io_service ());
   }
 
@@ -72,47 +82,51 @@ private:
 } // namespace detail
 
 #if __cplusplus >= 201103L
-template <typename Iterator, typename SmartSock, typename Handler>
+template <class Iterator, class Endpoint, class SmartSock, class Handler>
 #if __cplusplus < 201300L
-detail::convert_on_request_to_coro<Handler>
+detail::convert_on_request_to_coro<Endpoint, Handler>
 #else
 auto
 #endif
 on_request (Handler&& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
+            typename error_handler<Endpoint, SmartSock>::type,
             asio::yield_context, http::HttpMethod, uri::parts<Iterator>, 
             SmartSock
     )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
-  return detail::convert_on_request_to_coro<Handler> (
+  return detail::convert_on_request_to_coro<Endpoint, Handler> (
       std::forward<Handler> (handler));
 }
 #else
-template <typename Iterator, typename SmartSock, typename Handler>
-detail::convert_on_request_to_coro<Handler>
+template <class Iterator, class Endpoint, class SmartSock, class Handler>
+detail::convert_on_request_to_coro<Endpoint, Handler>
 on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
+            typename error_handler<Endpoint,SmartSock>::type,
             asio::yield_context, http::HttpMethod, uri::parts<Iterator>, 
             SmartSock
     )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
-  return detail::convert_on_request_to_coro<Handler> (handler);
+  return detail::convert_on_request_to_coro<Endpoint, Handler> (
+      handler);
 }
 #endif
 
 // #if __cplusplus < 201103L
 namespace traits {
 
-template <class Iterator, class SmartSock, class Handler>
-struct on_request<Iterator, SmartSock, Handler, typename boost::enable_if<
-  boost::is_same<typename boost::result_of<Handler (
+template <class Iterator, class Endpoint, class SmartSock, class Handler>
+struct on_request<Iterator, Endpoint, SmartSock, Handler, 
+  typename boost::enable_if<boost::is_same<typename boost::result_of<Handler (
+      typename error_handler<Endpoint,SmartSock>::type,
       asio::yield_context, http::HttpMethod, uri::parts<Iterator>, SmartSock
   )>::type, bool> >::type>
 {
-	typedef detail::convert_on_request_to_coro<Handler> type;
+	typedef detail::convert_on_request_to_coro<Endpoint, Handler> type;
 };
 
 } // namespace traits

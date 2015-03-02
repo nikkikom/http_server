@@ -7,6 +7,7 @@
 
 #include <http_server/trace.h>
 #include <http_server/on_request.h>
+#include <http_server/error_handler.h>
 #include <http_server/uri/parts.h>
 #include <http_server/detail/enabler.h>
 
@@ -14,7 +15,7 @@ namespace http {
 
 namespace detail {
 
-template <typename Iterator, typename Handler>
+template <class Iterator, class Endpoint, class Handler>
 class on_request_uri_parsed
 {
 public:
@@ -24,9 +25,12 @@ public:
   template <class> struct result {};
 
   template <class F, class SmartSock>
-  struct result<F (SmartSock, detail::final_call_tag)>
-  {
+  struct result<F (
+      typename error_handler<Endpoint, SmartSock>::type,
+      SmartSock, detail::final_call_tag
+  )> {
   	typedef typename boost::result_of<_Handler (
+  	  typename error_handler<Endpoint, SmartSock>::type,
   	  http::HttpMethod, uri::parts<Iterator>, SmartSock
   	)>::type type;
   };
@@ -42,17 +46,21 @@ public:
 
 	template <typename SmartSock>
 	typename boost::result_of<_Handler (
+	  typename error_handler<Endpoint, SmartSock>::type,
 	  http::HttpMethod, uri::parts<Iterator>, SmartSock
 	)>::type
-	operator() (SmartSock sock, detail::final_call_tag)
+	operator() (typename error_handler<Endpoint, SmartSock>::type error_h, 
+	            SmartSock sock, detail::final_call_tag)
 	{
 		typedef typename 
 		  boost::result_of<on_request_uri_parsed (
+		      typename error_handler<Endpoint, SmartSock>::type,
 		      SmartSock, detail::final_call_tag)>::type result_type;
 
 		// TODO: parse method and uri::parts here ...
 
-		return handler_ (method::Get, uri::parts<Iterator> (), sock);
+    // FIXME: c++11 forward for error_h
+		return handler_ (error_h, method::Get, uri::parts<Iterator> (), sock);
   }
 
 private:
@@ -62,45 +70,48 @@ private:
 }
 
 #if __cplusplus >= 201103L
-template <typename Iterator, typename SmartSock, typename Handler>
+template <class Iterator, class Endpoint, class SmartSock, class Handler>
 #if __cplusplus < 201300L
-detail::on_request_uri_parsed<Iterator,Handler>
+detail::on_request_uri_parsed<Iterator, Endpoint, Handler>
 #else
 auto
 #endif
 on_request (Handler&& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
+            typename error_handler<Endpoint, SmartSock>::type,
             http::HttpMethod, uri::parts<Iterator>, SmartSock
     )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
-  return detail::on_request_uri_parsed<Iterator, Handler> (
+  return detail::on_request_uri_parsed<Iterator, Endpoint, Handler> (
       std::forward<Handler> (handler));
 }
 #else
-template <typename Iterator, typename SmartSock, typename Handler>
-detail::on_request_uri_parsed<Iterator,Handler> 
+template <class Iterator, class Endpoint, class SmartSock, class Handler>
+detail::on_request_uri_parsed<Iterator, Endpoint, Handler> 
 on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
+            typename error_handler<Endpoint, SmartSock>::type,
             http::HttpMethod, uri::parts<Iterator>, SmartSock
     )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
-  return detail::on_request_uri_parsed<Iterator, Handler> (handler);
+  return detail::on_request_uri_parsed<Iterator, Endpoint, Handler> (handler);
 }
 #endif
 
 // #if __cplusplus < 201103L
 namespace traits {
 
-template <class Iterator, class SmartSock, class Handler>
-struct on_request<Iterator, SmartSock, Handler, typename boost::enable_if<
-  boost::is_same<typename boost::result_of<Handler (
+template <class Iterator, class Endpoint, class SmartSock, class Handler>
+struct on_request<Iterator, Endpoint, SmartSock, Handler, 
+  typename boost::enable_if<boost::is_same<typename boost::result_of<Handler (
+    typename error_handler<Endpoint, SmartSock>::type,
     http::HttpMethod, uri::parts<Iterator>, SmartSock
   )>::type, bool> >::type>
 {
-	typedef detail::on_request_uri_parsed<Iterator, Handler> type;
+	typedef detail::on_request_uri_parsed<Iterator, Endpoint, Handler> type;
 };
 
 } // namespace traits
