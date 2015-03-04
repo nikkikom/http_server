@@ -9,7 +9,7 @@ namespace error {
 
 enum http_server_errors {
 	inappropriate_handler = 1,
-	no_request_handler,
+	no_suitable_request_handler,
 };
 
 namespace detail {
@@ -26,7 +26,7 @@ public:
   	if (value == error::inappropriate_handler)
       return "Not appropriate handler for this request";
 
-  	if (value == error::no_request_handler)
+  	if (value == error::no_suitable_request_handler)
       return "No suitable request handler";
 
     return "http.server error";

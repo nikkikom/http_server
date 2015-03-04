@@ -48,9 +48,12 @@ private:
       
   typedef char const* request_iterator;
 
+  // on request lower layer signature
 	typedef compat::function<error_code (
-      error_handler_type, sock_smart_ptr, detail::final_call_tag
-	  )> request_handler_type;
+      error_handler_type
+    , http::HttpMethod, uri::parts<request_iterator>, sock_smart_ptr
+    // , detail::final_call_tag
+	)> request_handler_type;
 
 	typedef boost::container::stable_vector<request_handler_type> handler_vec;
 
@@ -180,12 +183,15 @@ public:
 
   	handlers_.push_back (
       // do recursive 'on_request' calls until resulting handler signature 
-      // becomes 'error_code (sock_smart_ptr)'. All black magic is hidden inside
-      // detail/repeat_until.h but, believe me, you do not want to look at it.
+      // becomes 'error_code (error_handler, sock_smart_ptr)'. 
+      // All black magic is hidden inside detail/repeat_until.h but, 
+      // believe me, you do not want to look at it.
       
-      detail::repeat_until< 
-        error_code (error_handler_type, sock_smart_ptr, detail::final_call_tag) 
-      > (
+      detail::repeat_until<error_code (error_handler_type
+          , http::HttpMethod, uri::parts<request_iterator>, sock_smart_ptr
+          //, detail::final_call_tag
+        )> 
+      (
           detail::on_request_functor<
             error_handler_type, request_iterator, sock_smart_ptr
           > ()
@@ -203,15 +209,18 @@ public:
 
   	handlers_.push_back (
       // do recursive 'on_request' calls until resulting handler signature 
-      // becomes 'error_code (sock_smart_ptr)'. All black magic is hidden inside
-      // detail/repeat_until.h but, believe me, you do not want to look at it.
+      // becomes 'error_code (error_handler, sock_smart_ptr)'. 
+      // All black magic is hidden inside detail/repeat_until.h but, 
+      // believe me, you do not want to look at it.
       
-      detail::repeat_until<
-        error_code (error_handler_type, sock_smart_ptr, detail::final_call_tag) 
-      > (
+      detail::repeat_until<error_code (error_handler_type
+          , http::HttpMethod, uri::parts<request_iterator>, sock_smart_ptr
+          //, detail::final_call_tag
+        )> 
+      (
           detail::on_request_functor<
             error_handler_type, request_iterator, sock_smart_ptr
-          > () 
+          > ()
         , std::forward<RequestHandler> (handler)
       )
   	);
@@ -219,6 +228,7 @@ public:
   	return *this;
   }
 #endif
+
 protected:
   class socket_dispose
   {
@@ -239,6 +249,83 @@ protected:
     }
   };
 
+#if __cplusplus < 201103L
+  struct handle_parsed_request_accept_binder
+  {
+  	template <class> struct result {};
+
+  	template <class F, class Error> struct result<F (Error,
+  	  http::HttpMethod, uri::parts<request_iterator>, sock_smart_ptr)>
+  	{
+  		// Error should be bool (error_code, std::string)
+  		BOOST_STATIC_ASSERT_MSG (
+  		  (boost::is_convertible<Error, error_handler_type>::value),
+  		      "Incompatible Error handler signature");
+
+  		typedef error_code type;
+    };
+
+    server* that_;
+    typename handler_vec::const_iterator next_iter_;
+
+    handle_parsed_request_accept_binder (server* that,
+        typename handler_vec::const_iterator next_iter)
+      : that_ (that)
+      , next_iter_ (next_iter)
+    {
+    }
+
+    error_code 
+    operator() (error_handler_type result_functor, 
+        http::HttpMethod method, uri::parts<request_iterator> parsed,
+        sock_smart_ptr sptr)
+    {
+    	return that_->handle_parsed_request_accept (result_functor, method,
+    	    parsed, sptr, next_iter_, 
+    	    make_error_code (error::inappropriate_handler));
+    }
+  };
+#endif
+
+  error_code
+  handle_parsed_request_accept (error_handler_type result_handler,
+    http::HttpMethod method, uri::parts<request_iterator> parsed,
+    sock_smart_ptr sptr,
+    typename handler_vec::const_iterator next_iter, error_code ec)
+  {
+  	HTTP_TRACE_ENTER_CLS();
+
+  	while (ec == make_error_code (error::inappropriate_handler) 
+  		  && next_iter != handlers_.end ())
+    {
+    	request_handler_type& user_handler = *next_iter++;
+
+    	ec = user_handler (
+// #if __cplusplus < 201300L
+			  boost::bind (&server::handle_parsed_request_accept, this,
+			    result_handler, method, parsed, sptr, next_iter, _1),
+// #else // lambda
+        method, parsed, sptr // , detail::final_call_tag ()
+      );
+
+      if (ec != make_error_code (error::inappropriate_handler))
+        return ec;
+    }
+
+    if (ec == error_code ())
+    {
+    	HTTP_TRACE_NOTIFY ("found request handler");
+    }
+
+    if (next_iter == handlers_.end ())
+    {
+    	HTTP_TRACE_NOTIFY ("cannot found compatible request handler");
+    	return make_error_code (error::no_suitable_request_handler);
+    }
+
+    return ec;
+  }
+
   void handle_accept (error_code const& ec, 
       endpoint_type const& local_ep, endpoint_type const& remote_ep,
       socket_ptr sock)
@@ -253,28 +340,66 @@ protected:
     error_code connect_ec = 
         on_connect_handler_ (ec, local_ep, remote_ep, sptr);
 
-    if (! connect_ec)
-    {
-    	// continue 
-    	bool ok = false;
-    	BOOST_FOREACH (request_handler_type& handler, handlers_)
-    	{
-    		// ok = handler (method::Get, uri::parts<request_iterator> (), sptr);
-    		ok = handler (on_error_handler_, sptr, detail::final_call_tag ());
-    		if (ok) break;
-      }
-
-      HTTP_TRACE_NOTIFY ("found request handler=" << ok);
-
-      if (! ok) 
-      	connect_ec = make_error_code (sys::errc::function_not_supported);
-    }
-
     if (connect_ec)
     {
     	// print error, close connection
     	on_error_handler_ (connect_ec, std::string ());
     }
+
+    // TODO: should implement more clever version, with handlers ordered list 
+    // and tree contained parsed and not-yet-parsed entries.
+    // ....
+
+    // Parse http request now.
+    error_code ret_ec = http::on_request<
+        error_handler_type, request_iterator, sock_smart_ptr
+    > ( // 1. find/create the proper handler
+#if __cplusplus < 201103L
+#if 0
+		    // convert to function because boost::result_of has the problems 
+		    // with boost::bind return type.
+		    boost::function<error_code (error_handler_type, http::HttpMethod,
+		        uri::parts<request_iterator>, sock_smart_ptr, 
+		        typename handler_vec::const_iterator, error_code)> 
+		    (
+          boost::bind<error_code> (
+              &server::handle_parsed_request_accept, this
+            , _1 // ResultF
+            , _2 // HttpMethod
+            , _3 // uri::parts
+            , _4 // SmartSock
+            , handlers_.begin ()
+            , make_error_code (error::inappropriate_handler)
+          )
+        )
+#else
+				handle_parsed_request_accept_binder (this, handlers_.begin ())
+#endif
+#else
+				[this] (error_handler_type result_functor, 
+				    http::HttpMethod method, uri::parts<request_iterator> parsed,
+				    sock_smart_ptr sptr) -> error_code
+				{
+					return handle_parsed_request_accept (result_functor, method,
+					    parsed, sptr, handlers_.begin (), 
+					    make_error_code (error::inappropriate_handler));
+				}
+#endif
+    )
+      // 2. call the handler
+    (
+      boost::bind<bool> (&server::on_error_default, _1, _2),
+      sptr,
+      detail::final_call_tag ()
+    );
+
+    if (! ret_ec)
+    {
+    	HTTP_TRACE_NOTIFY ("HTTP request line parse error");
+    	return;
+    }
+
+    HTTP_TRACE_NOTIFY ("HTTP request line parse ok");
   }
 
 protected:
