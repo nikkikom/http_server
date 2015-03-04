@@ -123,14 +123,16 @@ public:
 	template <class> struct result {};
 	template <class F, class OnError, class Iterator, class SmartSock> 
 	struct result<F (OnError,asio::yield_context,http::HttpMethod,http::uri::parts<Iterator>,SmartSock)>
-	{ typedef bool type; };
+	{ typedef sys::error_code type; };
 #endif
 
 	template <class OnError, typename Iterator, typename SmartSock>
-	bool operator() (OnError err, asio::yield_context y,http::HttpMethod m, 
+	sys::error_code
+	operator() (OnError on_err, asio::yield_context y,http::HttpMethod m, 
 	    http::uri::parts<Iterator> parsed, SmartSock sock) const
 	{
-		return true;
+		// bool b = on_err (sys::error_code (), "");
+		return sys::error_code ();
   }
 
 };
@@ -253,11 +255,12 @@ int main ()
     .on_request (
       // predicates::istarts_with (url::path, "/callback/"),
 #if __cplusplus >= 201300L
-      [] (auto on_error, asio::yield_context yield,
+      [] (auto on_err, asio::yield_context yield,
           http::HttpMethod, auto parsed, auto sock_ptr)
       {
+		    // bool b = on_err (sys::error_code (), "");
       	std::cout << "CORO HANDLER\n";
-      	return true;
+      	return sys::error_code ();
       }
 #else
 			my_coro_handler ()

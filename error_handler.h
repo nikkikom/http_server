@@ -13,11 +13,12 @@ struct error_handler
 
   typedef compat::function<bool (
       error_code const& // error
-    , bool              // can be recovered?
     , std::string       // error details message (should not dublicate err_code)
+#if 0
     , Endpoint const&   // local endpoint
     , Endpoint const&   // remote endpoint
     , SockPtr           // socket
+#endif
   )> type;
 };
 

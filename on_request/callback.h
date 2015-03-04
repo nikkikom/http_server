@@ -42,7 +42,7 @@ on_request (Handler&& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
             Error, http::HttpMethod, uri::parts<Iterator>, SmartSock
-    )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
+    )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
 #if __cplusplus < 201300L
       -> decltype (handler)
 #endif
@@ -56,7 +56,7 @@ Handler
 on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
       Error, http::HttpMethod, uri::parts<Iterator>, SmartSock
-    )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
+    )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
   return handler;

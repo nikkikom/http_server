@@ -48,7 +48,7 @@ private:
       
   typedef char const* request_iterator;
 
-	typedef compat::function<bool (
+	typedef compat::function<error_code (
       error_handler_type, sock_smart_ptr, detail::final_call_tag
 	  )> request_handler_type;
 
@@ -180,11 +180,11 @@ public:
 
   	handlers_.push_back (
       // do recursive 'on_request' calls until resulting handler signature 
-      // becomes 'bool (sock_smart_ptr)'. All black magic is hidden inside
+      // becomes 'error_code (sock_smart_ptr)'. All black magic is hidden inside
       // detail/repeat_until.h but, believe me, you do not want to look at it.
       
       detail::repeat_until< 
-        bool (error_handler_type, sock_smart_ptr, detail::final_call_tag) 
+        error_code (error_handler_type, sock_smart_ptr, detail::final_call_tag) 
       > (
           detail::on_request_functor<
             error_handler_type, request_iterator, sock_smart_ptr
@@ -203,11 +203,11 @@ public:
 
   	handlers_.push_back (
       // do recursive 'on_request' calls until resulting handler signature 
-      // becomes 'bool (sock_smart_ptr)'. All black magic is hidden inside
+      // becomes 'error_code (sock_smart_ptr)'. All black magic is hidden inside
       // detail/repeat_until.h but, believe me, you do not want to look at it.
       
       detail::repeat_until<
-        bool (error_handler_type, sock_smart_ptr, detail::final_call_tag) 
+        error_code (error_handler_type, sock_smart_ptr, detail::final_call_tag) 
       > (
           detail::on_request_functor<
             error_handler_type, request_iterator, sock_smart_ptr
@@ -273,8 +273,7 @@ protected:
     if (connect_ec)
     {
     	// print error, close connection
-    	on_error_handler_ (connect_ec, false, std::string (), 
-    	        local_ep, remote_ep, sptr);
+    	on_error_handler_ (connect_ec, std::string ());
     }
   }
 
@@ -285,12 +284,10 @@ protected:
   	return error_code ();
   }
 
-  static bool on_error_default (error_code const&, bool recoverable, 
-      std::string const&, endpoint_type const&, endpoint_type const&, 
-      sock_smart_ptr)
-  {
-  	// try to recover if possible
-  	return recoverable;
+  static bool on_error_default (error_code const&, std::string const&
+      // , endpoint_type const&, endpoint_type const&, sock_smart_ptr
+  ) {
+  	return false;
   }
 
 private:

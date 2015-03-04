@@ -91,7 +91,7 @@ on_request (Handler&& handler, typename boost::enable_if_c<
       typename boost::decay<Handler>::type (
             Error, asio::yield_context, http::HttpMethod, 
             uri::parts<Iterator>, SmartSock
-    )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
+    )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
   return detail::convert_on_request_to_coro<Handler> (
@@ -104,7 +104,7 @@ on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
             Error, asio::yield_context, http::HttpMethod, 
             uri::parts<Iterator>, SmartSock
-    )>::type, bool>::value, detail::enabler>::type = detail::enabler ())
+    )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
   return detail::convert_on_request_to_coro<Handler> (handler);
@@ -119,7 +119,7 @@ struct on_request<Error, Iterator, SmartSock, Handler,
   typename boost::enable_if<boost::is_same<typename boost::result_of<Handler (
       Error, asio::yield_context, http::HttpMethod, 
       uri::parts<Iterator>, SmartSock
-  )>::type, bool> >::type>
+  )>::type, error_code> >::type>
 {
 	typedef detail::convert_on_request_to_coro<Handler> type;
 };
