@@ -3,7 +3,10 @@
 
 #include <boost/static_assert.hpp>
 #include <boost/type_traits/is_same.hpp>
+#include <boost/type_traits/is_convertible.hpp>
 #include <boost/utility/result_of.hpp>
+
+#include <http_server/error_handler.h>
 
 namespace http {
 
@@ -19,9 +22,9 @@ template <class ResultF, class Iterator, class Sock, class Handler,
 struct on_request 
 {
 #if 1
-	BOOST_STATIC_ASSERT_MSG ((boost::is_same<
-	    typename boost::result_of<ResultF(bool)>::type, void>::value),
-	  "Result Functor should have 'void (bool)' signature"
+	BOOST_STATIC_ASSERT_MSG ((
+	    boost::is_convertible<ResultF, error_handler>::value),
+	  "Result Functor should have 'bool (error_code, string)' signature"
 	);
 #endif
 
@@ -42,10 +45,12 @@ namespace detail {
 template <class ResultF, class Iterator, class Sock>
 struct on_request_functor
 {
-	BOOST_STATIC_ASSERT_MSG ((boost::is_same<
-	    typename boost::result_of<ResultF(bool)>::type, void>::value),
-	  "Result Functor should have 'void (bool)' signature"
+#if 0
+	BOOST_STATIC_ASSERT_MSG ((
+	    boost::is_convertible<ResultF, error_handler>::value),
+	  "Result Functor should have 'bool (error_code, string)' signature"
 	);
+#endif
 
 #if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
 	template <class> struct result {};

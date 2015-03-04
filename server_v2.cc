@@ -133,7 +133,7 @@ public:
 	    http::HttpMethod m, 
 	    http::uri::parts<Iterator> parsed, SmartSock sock) const
 	{
-		// r (true);
+		bool ret = r (sys::error_code (), "");
 		return boost::indeterminate;
   }
 
@@ -257,12 +257,12 @@ int main ()
     .on_request (
       // predicates::istarts_with (url::path, "/callback/"),
 #if __cplusplus >= 201300L
-      [] (auto r, asio::yield_context yield, 
+      [] (auto r, asio::yield_context yield,
           http::HttpMethod, auto parsed, auto sock_ptr) -> boost::tribool
       {
       	std::cout << "CORO HANDLER\n";
 
-        r (true);
+        bool ret = r (sys::error_code (), "");
       	return boost::indeterminate;
       }
 #else

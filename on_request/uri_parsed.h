@@ -87,8 +87,9 @@ on_request (Handler&& handler, typename boost::enable_if_c<
         typename boost::decay<Handler>::type (
               ResultF, http::HttpMethod, uri::parts<Iterator>, SmartSock
       )>::type, boost::tribool>::value
-  &&  boost::is_same<typename boost::result_of<ResultF (bool)>::type, 
-        void>::value
+  &&  boost::is_same<
+        typename boost::result_of<ResultF (error_code, std::string)>::type, bool
+      >::value
     , detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
@@ -103,8 +104,9 @@ on_request (Handler const& handler, typename boost::enable_if_c<
               ResultF, http::HttpMethod, uri::parts<Iterator>, SmartSock
       )>::type, boost::tribool>::value
 #if 0
-  &&  boost::is_same<typename boost::result_of<ResultF (bool)>::type, 
-        void>::value
+  &&  boost::is_same<
+        typename boost::result_of<ResultF (error_code, std::string)>::type, bool
+      >::value
 #endif
     , detail::enabler>::type = detail::enabler ())
 {
@@ -124,7 +126,7 @@ struct on_request<ResultF,Iterator,SmartSock,Handler,
       )>::type, boost::tribool>::value
 #if 0
   &&  boost::is_same<typename boost::result_of<
-        ResultF (bool)>::type, void>::value
+        ResultF (error_code, std::string)>::type, bool>::value
 #endif
   >::type>
 {

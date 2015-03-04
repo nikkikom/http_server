@@ -4,6 +4,7 @@
 #include <http_server/trace.h>
 #include <http_server/compat.h>
 #include <http_server/method.h>
+#include <http_server/error_handler.h>
 #include <http_server/server/io_manager.h>
 #include <http_server/on_connect.h>
 #include <http_server/on_request.h>
@@ -109,7 +110,7 @@ public:
     manager_.listen_on (ep, 
 #if __cplusplus < 201103L
       boost::protect (
-        boost::bind (&server::handle_accept_tls, this, _1, ep, _2, _3)
+        boost::bind (&server::handle_accept, this, _1, ep, _2, _3)
       )
 #else
 			[this, ep] 
@@ -144,17 +145,16 @@ public:
 
   	handlers_.push_back (
       // do recursive 'on_request' calls until resulting handler signature 
-      // becomes 'tribool (handler(bool), sock_smart_ptr)'. 
+      // becomes 'tribool (error_handler, sock_smart_ptr)'. 
       // All black magic is hidden inside detail/repeat_until.h and, 
       // believe me, you do not want to look at it.
       
-      detail::repeat_until< boost::tribool (
-          boost::function<void(bool)>, http::HttpMethod, 
+      detail::repeat_until< boost::tribool (error_handler, http::HttpMethod, 
           uri::parts<request_iterator>, sock_smart_ptr
         ) > 
       (
           detail::on_request_functor<
-              boost::function<void(bool)>, request_iterator, sock_smart_ptr
+              error_handler, request_iterator, sock_smart_ptr
           > (), boost::move (handler)
       )
   	);
@@ -187,8 +187,8 @@ protected:
   {
   	template <class> struct result {};
   	template <class F> 
-  	struct result<F(boost::function<void(bool)>, http::HttpMethod, 
-  	  uri::parts<request_iterator>, sock_smart_ptr)>
+  	struct result<F(error_handler,
+  	  http::HttpMethod, uri::parts<request_iterator>, sock_smart_ptr)>
   	{
   		typedef boost::tribool type;
     };
@@ -201,7 +201,7 @@ protected:
       : that_ (that), next_iter_ (next_iter) {}
 
     boost::tribool
-    operator () (boost::function<void(bool)> result_functor, 
+    operator () (error_handler result_functor, 
 					  http::HttpMethod method, uri::parts<request_iterator> parsed,
 					  sock_smart_ptr sptr)
 		{
@@ -212,7 +212,7 @@ protected:
 #endif
 
   boost::tribool 
-  handle_user_request_accept (boost::function<void(bool)> result_functor, 
+  handle_user_request_accept (error_handler result_functor, 
     http::HttpMethod method, uri::parts<request_iterator> parsed,
     sock_smart_ptr sptr,
     typename handler_vec::const_iterator next_iter, bool ok)
@@ -261,8 +261,7 @@ protected:
   }
 
   boost::tribool 
-  handle_user (
-    boost::function<void(bool)> result_functor, http::HttpMethod,
+  handle_user (error_handler result_functor, http::HttpMethod,
     uri::parts<request_iterator> const&
   )
   {
@@ -294,7 +293,7 @@ protected:
 
     // Parse http request
     boost::tribool parse_ok = http::on_request<
-      boost::function<void(bool)>, request_iterator, sock_smart_ptr
+      error_handler, request_iterator, sock_smart_ptr
     > (
 #if __cplusplus < 201103L
           // For some reasons, compiler fails to deduce arguments properly 
@@ -314,7 +313,7 @@ protected:
 					handle_user_request_accept_binder (this, handlers_.begin ())
 #endif
 #else
-					[this] (boost::function<void(bool)> result_functor, 
+					[this] (error_handler result_functor, 
 					  http::HttpMethod method, uri::parts<request_iterator> parsed,
 					  sock_smart_ptr sptr) -> boost::tribool
 					{
@@ -324,7 +323,7 @@ protected:
 #endif
    )
   	( 
-  	  boost::bind (&server::handle_http_parse, this, _1),
+  	  boost::bind (&server::handle_http_parse, this, _1, _2),
       sptr, 
       detail::final_call_tag ()
     );
@@ -344,10 +343,11 @@ protected:
     // parse_ok == boost::indeterminate, do nothing
   }
 
-  void handle_http_parse (bool ok)
+  bool handle_http_parse (error_code const& ec, std::string msg)
   {
     HTTP_TRACE_ENTER_CLS();
-    HTTP_TRACE_NOTIFY ("HTTP request line parse " << ok << " (delayed)");
+    HTTP_TRACE_NOTIFY ("HTTP request line parse " << ec.message () << " (delayed)");
+    return false;
   }
 
 protected:

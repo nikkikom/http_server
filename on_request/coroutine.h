@@ -11,6 +11,7 @@
 #include <http_server/asio.h>
 #include <http_server/trace.h>
 #include <http_server/return_to_type.h>
+#include <http_server/error_handler.h>
 #include <http_server/on_request.h>
 #include <http_server/detail/convert_callback_to_coro.h>
 #include <http_server/uri/parts.h>
@@ -21,8 +22,6 @@
 #include <utility>
 
 namespace http { 
-
-using sys::error_code;
 
 namespace detail {
 
@@ -37,7 +36,9 @@ public:
   template <class F, class ResultF, class Iterator, class SmartSock> 
   struct result<F (ResultF, http::HttpMethod, uri::parts<Iterator>, SmartSock),
     typename boost::enable_if<
-      boost::is_same< typename boost::result_of<ResultF(bool)>::type, void >
+      boost::is_same< 
+        typename boost::result_of<ResultF(error_code,std::string)>::type, bool
+      >
     >::type>
   {
   	typedef typename boost::result_of<_Handler (
@@ -64,7 +65,9 @@ public:
   operator() (ResultF r, http::HttpMethod method, 
     uri::parts<Iterator> const& parsed, SmartSock sock,
     typename boost::enable_if<
-      boost::is_same<typename boost::result_of<ResultF(bool)>::type, void>, 
+      boost::is_same<
+        typename boost::result_of<ResultF(error_code, std::string)>::type, bool
+      >,
       detail::enabler>::type = detail::enabler ())
   {
     typedef typename boost::result_of<_Handler (
@@ -98,7 +101,7 @@ on_request (Handler&& handler, typename boost::enable_if_c<
               http::HttpMethod, uri::parts<Iterator>, SmartSock
       )>::type, boost::tribool>::value
   &&  boost::is_same<typename boost::result_of<
-        ResultF(bool)>::type, void>::value
+        ResultF(error_code, std::string)>::type, bool>::value
   , detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
@@ -115,7 +118,7 @@ on_request (Handler const& handler, typename boost::enable_if<
       )>::type, boost::tribool>
 #if 0
   &&  boost::is_same<typename boost::result_of<
-          ResultF(bool)>::type, void>::value
+          ResultF(error_code, std::string)>::type, bool>::value
 #endif
     , detail::enabler>::type = detail::enabler ())
 {
@@ -135,7 +138,8 @@ struct on_request<ResultF, Iterator, SmartSock, Handler,
           http::HttpMethod, uri::parts<Iterator>, SmartSock
       )>::type, boost::tribool>::value 
   &&  boost::is_same<
-          typename boost::result_of<ResultF(bool)>::type, void>::value   
+        typename boost::result_of<ResultF(error_code, std::string)>::type, bool
+      >::value   
   >::type>
 {
 	typedef detail::convert_on_request_to_coro<Handler> type;
