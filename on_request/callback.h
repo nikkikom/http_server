@@ -11,7 +11,7 @@
 #include <http_server/uri/parts.h>
 #include <http_server/detail/enabler.h>
 
-namespace http { 
+namespace http {
 
 namespace detail {
 template <typename Handler>
@@ -24,11 +24,12 @@ public:
   template <class> struct result {};
   template <class F, class Error, class Iterator, class SmartSock>
   struct result<F (
-      Error, http::HttpMethod, uri::parts<Iterator>, SmartSock
+      Error, http::HttpMethod, http::url,
+      http::headers<boost::iterator_range<Iterator> >, SmartSock
   )> {
     typedef typename boost::result_of<_Handler (
       Error, asio::yield_context, http::HttpMethod, 
-      uri::parts<Iterator>, SmartSock
+      http::url, http::headers<boost::iterator_range<Iterator> >, SmartSock
     )>::type type;
   };
 #endif
@@ -41,7 +42,8 @@ auto
 on_request (Handler&& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
-            Error, http::HttpMethod, uri::parts<Iterator>, SmartSock
+            Error, http::HttpMethod, http::url,
+            http::headers<boost::iterator_range<Iterator> >, SmartSock
     )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
 #if __cplusplus < 201300L
       -> decltype (handler)
@@ -55,7 +57,8 @@ template <class Error, class Iterator, class SmartSock, class Handler>
 Handler
 on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
-      Error, http::HttpMethod, uri::parts<Iterator>, SmartSock
+      Error, http::HttpMethod, http::url,
+      http::headers<boost::iterator_range<Iterator> >, SmartSock
     )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
