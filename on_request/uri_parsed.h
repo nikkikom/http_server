@@ -11,11 +11,171 @@
 #include <http_server/uri/parts.h>
 #include <http_server/detail/enabler.h>
 
+#include <yplatform/url.hpp>
+#include <yplatform/http/headers.hpp>
+#include <yplatform/http/parse_headers.hpp>
+
 namespace http { 
 
 namespace detail {
 
-template <class Iterator, class Handler>
+inline HttpMethod translate_method(const std::string& name)
+{
+  if (boost::iequals(name, boost::as_literal("options")))
+    return method::Options;
+  if (boost::iequals(name, boost::as_literal("get")))
+    return method::Get;
+  if (boost::iequals(name, boost::as_literal("head")))
+    return method::Head;
+  if (boost::iequals(name, boost::as_literal("post")))
+    return method::Post;
+  if (boost::iequals(name, boost::as_literal("put")))
+    return method::Put;
+  if (boost::iequals(name, boost::as_literal("patch")))
+    return method::Patch;
+  if (boost::iequals(name, boost::as_literal("delete")))
+    return method::Delete;
+  if (boost::iequals(name, boost::as_literal("trace")))
+    return method::Trace;
+  if (boost::iequals(name, boost::as_literal("connect")))
+    return method::Connect;
+  return method::Unknown;
+}
+
+template <typename SmartSocket, typename Handler, typename ErrorHandler>
+class read_request_op
+{
+public:
+  read_request_op(SmartSocket socket, Handler& handler,
+      ErrorHandler& error_handler) :
+    socket_(socket),
+#if __cplusplus >= 201103L
+    handler_(std::move(handler)),
+    error_handler_(std::move(error_handler)),
+#else
+    handler_(handler),
+    error_handler_(error_handler),
+#endif
+    start_(0),
+    buffers_(new boost::asio::streambuf),
+    method_(method::Unknown)
+  {}
+
+#if __cplusplus >= 201103L
+  read_request_op(const read_request_op& other) :
+    socket_(other.socket_),
+    handler_(other.handler_),
+    error_handler_(other.error_handler_),
+    start_(other.start_),
+    buffers_(other.buffers_),
+    method_(other.method_),
+    url_(other.url_)
+  {}
+
+  read_request_op(read_request_op&& other) :
+    socket_(other.socket_),
+    handler_(std::move(other.handler_)),
+    error_handler_(std::move(other.error_handler_)),
+    start_(other.start_),
+    buffers_(other.buffers_),
+    method_(other.method_),
+    url_(std::move(other.url_))
+  {}
+#endif
+
+  void operator ()()
+  {
+    HTTP_TRACE_ENTER_CLS();
+
+    boost::asio::async_read_until(*socket_, *buffers_, "\r\n", *this);
+  }
+
+  void operator ()(boost::system::error_code ec, std::size_t sz = 0)
+  {
+    HTTP_TRACE_ENTER_CLS();
+
+    if (ec)
+    {
+      // TODO: Handle an error.
+      return;
+    }
+
+    switch (++start_)
+    {
+      case 1:
+        handle_request(ec);
+        return;
+      case 2:
+        handle_headers(ec, sz);
+        return;
+    }
+  }
+
+private:
+  void handle_request(boost::system::error_code)
+  {
+    HTTP_TRACE_ENTER_CLS();
+
+    std::istream is(&*buffers_);
+
+    // Extract request method.
+    std::string method;
+    is >> method;
+
+    // Extract request URL.
+    std::string url;
+    is >> url;
+
+    // Extract HTTP protocol version.
+    std::string version;
+    std::getline(is >> std::ws, version);
+
+    if (version.compare(0, 5, "HTTP/") != 0)
+    {
+      // TODO: Handle http::error::malformed_request error.
+      return;
+    }
+
+    if ((method_ = translate_method(method)) == method::Unknown)
+    {
+      // TODO: Handle http::error::unknown_method error.
+      return;
+    }
+
+    url_ = url;
+
+    // Read HTTP headers.
+    boost::asio::async_read_until(*socket_, *buffers_, "\r\n\r\n", *this);
+  }
+
+  void handle_headers(boost::system::error_code, std::size_t sz)
+  {
+    HTTP_TRACE_ENTER_CLS();
+
+    // Parse HTTP request headers.
+    typedef boost::asio::buffers_iterator<
+      boost::asio::streambuf::const_buffers_type> iterator;
+    boost::asio::streambuf::const_buffers_type bufs = buffers_->data();
+    yplatform::http::headers<boost::iterator_range<iterator> > headers;
+    yplatform::http::parse_headers(
+      boost::make_iterator_range(boost::asio::buffers_begin(bufs),
+        boost::asio::buffers_begin(bufs) + sz),
+      headers);
+    buffers_->consume(sz);
+
+    handler_(error_handler_, method_, url_, headers, socket_);
+  }
+
+  SmartSocket socket_;
+  Handler handler_;
+  ErrorHandler error_handler_;
+  int start_;
+  boost::shared_ptr<boost::asio::streambuf> buffers_;
+  HttpMethod method_;
+  yplatform::url url_;
+};
+
+template <typename Iterator, typename Handler>
 class on_request_uri_parsed
 {
 public:
@@ -45,17 +205,23 @@ public:
   // FIXME: move error handler on c++11
 	template <class Error, class SmartSock>
 	typename boost::result_of<_Handler (
-	  Error, http::HttpMethod, uri::parts<Iterator>, SmartSock
+	  Error, http::HttpMethod, http::url,
+    http::headers<boost::iterator_range<Iterator> >, SmartSock
 	)>::type
 	operator() (Error error_h, SmartSock sock, detail::final_call_tag)
 	{
+    HTTP_TRACE_ENTER_CLS();
+
 		typedef typename 
 		  boost::result_of<on_request_uri_parsed (
 		      Error, SmartSock, detail::final_call_tag)>::type result_type;
 
-		// TODO: parse method and uri::parts here ...
+    read_request_op<SmartSock, _Handler, Error>(sock, handler_, error_h)();
 
-		return handler_ (error_h, method::Get, uri::parts<Iterator> (), sock);
+		/*return handler_ (error_h, method::Get, http::url(),
+        http::headers<boost::iterator_range<Iterator> >, sock);*/
+    return boost::system::error_code();
+    // return true;
   }
 
 private:
@@ -70,7 +236,8 @@ detail::on_request_uri_parsed<Iterator, Handler>
 on_request (Handler&& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
-            Error, http::HttpMethod, uri::parts<Iterator>, SmartSock
+            Error, http::HttpMethod, http::url,
+            http::headers<boost::iterator_range<Iterator> >, SmartSock
     )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
@@ -82,7 +249,8 @@ template <class Error, class Iterator, class SmartSock, class Handler>
 detail::on_request_uri_parsed<Iterator, Handler> 
 on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
-            Error, http::HttpMethod, uri::parts<Iterator>, SmartSock
+            Error, http::HttpMethod, http::url,
+            http::headers<boost::iterator_range<Iterator> >, SmartSock
     )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
@@ -96,7 +264,8 @@ namespace traits {
 template <class Error, class Iterator, class SmartSock, class Handler>
 struct on_request<Error, Iterator, SmartSock, Handler, 
   typename boost::enable_if<boost::is_same<typename boost::result_of<Handler (
-    Error, http::HttpMethod, uri::parts<Iterator>, SmartSock
+    Error, http::HttpMethod, http::url,
+    http::headers<boost::iterator_range<Iterator> >, SmartSock
   )>::type, error_code> >::type>
 {
 	typedef detail::on_request_uri_parsed<Iterator, Handler> type;

@@ -6,7 +6,13 @@
 # include <boost/static_assert.hpp>
 #endif
 
+#include <yplatform/url.hpp>
+#include <yplatform/http/headers.hpp>
+
 namespace http {
+
+using ::yplatform::url;
+using ::yplatform::http::headers;
 
 namespace detail { struct final_call_tag {}; }
 

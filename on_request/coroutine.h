@@ -33,11 +33,12 @@ public:
   template <class> struct result {};
   template <class F, class Error, class Iterator, class SmartSock> 
   struct result<F (
-      Error, http::HttpMethod, uri::parts<Iterator>, SmartSock
+      Error, http::HttpMethod, http::url,
+      http::headers<boost::iterator_range<Iterator> >, SmartSock
   )> {
   	typedef typename boost::result_of<_Handler (
   	  Error, asio::yield_context, http::HttpMethod, 
-  	  uri::parts<Iterator>, SmartSock
+  	  http::url, http::headers<boost::iterator_range<Iterator> >, SmartSock
   	)>::type type;
   };
 #endif
@@ -54,21 +55,21 @@ public:
   template <class Error, class Iterator, class SmartSock>
   typename boost::result_of<_Handler (
     Error, asio::yield_context, http::HttpMethod, 
-    uri::parts<Iterator>, SmartSock
+    http::url, http::headers<boost::iterator_range<Iterator> >, SmartSock
   )>::type 
-  operator() (Error error_h, http::HttpMethod method, 
-    uri::parts<Iterator> const& parsed, SmartSock sock)
+  operator() (Error error_h, http::HttpMethod method, http::url const& parsed,
+    http::headers<boost::iterator_range<Iterator> > headers, SmartSock sock)
   {
     typedef typename boost::result_of<_Handler (
       Error, asio::yield_context, http::HttpMethod, 
-      uri::parts<Iterator>, SmartSock
+      http::url, http::headers<boost::iterator_range<Iterator> >, SmartSock
     )>::type result_type;
 
   	using boost::cref;
 
   	return detail::convert_callback_to_coro (
   	  boost::bind<result_type> (
-  	      handler_, error_h, _1, method, cref (parsed), sock
+  	      handler_, error_h, _1, method, cref (parsed), headers, sock
   	  )
   	) (sock->get_io_service ());
   }
@@ -89,8 +90,8 @@ auto
 on_request (Handler&& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
-            Error, asio::yield_context, http::HttpMethod, 
-            uri::parts<Iterator>, SmartSock
+            Error, asio::yield_context, http::HttpMethod, http::url,
+            http::headers<boost::iterator_range<Iterator> >, SmartSock
     )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
@@ -102,8 +103,8 @@ template <class Error, class Iterator, class SmartSock, class Handler>
 detail::convert_on_request_to_coro<Handler>
 on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
-            Error, asio::yield_context, http::HttpMethod, 
-            uri::parts<Iterator>, SmartSock
+            Error, asio::yield_context, http::HttpMethod, http::url,
+            http::headers<boost::iterator_range<Iterator> >, SmartSock
     )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
@@ -118,7 +119,7 @@ template <class Error, class Iterator, class SmartSock, class Handler>
 struct on_request<Error, Iterator, SmartSock, Handler, 
   typename boost::enable_if<boost::is_same<typename boost::result_of<Handler (
       Error, asio::yield_context, http::HttpMethod, 
-      uri::parts<Iterator>, SmartSock
+      http::url, http::headers<boost::iterator_range<Iterator> >, SmartSock
   )>::type, error_code> >::type>
 {
 	typedef detail::convert_on_request_to_coro<Handler> type;
