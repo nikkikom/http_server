@@ -50,12 +50,14 @@ private:
   typedef boost::asio::buffers_iterator<
       boost::asio::streambuf::const_buffers_type> request_iterator;
 
+  typedef http::headers<boost::iterator_range<request_iterator> > headers_type;
+
   // on request lower layer signature
 	typedef compat::function<error_code (
       error_handler_type
     , http::HttpMethod
     , yplatform::url
-    , yplatform::http::headers<boost::iterator_range<request_iterator> >
+    , headers_type
     , sock_smart_ptr
     // , detail::final_call_tag
 	)> request_handler_type;
@@ -194,7 +196,7 @@ public:
       
       detail::repeat_until<error_code (error_handler_type
           , http::HttpMethod, http::url
-          , http::headers<boost::iterator_range<request_iterator> >
+          , headers_type
           , sock_smart_ptr
           //, detail::final_call_tag
         )> 
@@ -221,9 +223,8 @@ public:
       // believe me, you do not want to look at it.
       
       detail::repeat_until<error_code (error_handler_type
-          , http::HttpMethod, yplatform::url,
-          yplatform::http::headers<boost::iterator_range<request_iterator> >,
-          sock_smart_ptr
+          , http::HttpMethod, yplatform::url, headers_type
+          , sock_smart_ptr
           //, detail::final_call_tag
         )> 
       (
@@ -264,7 +265,7 @@ protected:
   	template <class> struct result {};
 
   	template <class F, class Error> struct result<F (Error,
-  	  http::HttpMethod, uri::parts<request_iterator>, sock_smart_ptr)>
+  	  http::HttpMethod, http::url, headers_type, sock_smart_ptr)>
   	{
   		// Error should be bool (error_code, std::string)
   		BOOST_STATIC_ASSERT_MSG (
@@ -286,11 +287,11 @@ protected:
 
     error_code 
     operator() (error_handler_type result_functor, 
-        http::HttpMethod method, uri::parts<request_iterator> parsed,
-        sock_smart_ptr sptr)
+        http::HttpMethod method, http::url parsed,
+        headers_type headers, sock_smart_ptr sptr)
     {
     	return that_->handle_parsed_request_accept (result_functor, method,
-    	    parsed, sptr, next_iter_, 
+    	    parsed, headers, sptr, next_iter_, 
     	    make_error_code (error::inappropriate_handler));
     }
   };
@@ -299,8 +300,7 @@ protected:
   error_code
   handle_parsed_request_accept (error_handler_type result_handler,
     http::HttpMethod method, http::url parsed,
-    http::headers<boost::iterator_range<request_iterator> > headers,
-    sock_smart_ptr sptr,
+    headers_type headers, sock_smart_ptr sptr,
     typename handler_vec::const_iterator next_iter, error_code ec)
   {
   	HTTP_TRACE_ENTER_CLS();
@@ -315,6 +315,7 @@ protected:
 			  boost::bind (&server::handle_parsed_request_accept, this,
 			    result_handler, method, parsed, headers, sptr, next_iter, _1),
 // #else // lambda
+// #endif
         method, parsed, headers, sptr // , detail::final_call_tag ()
       );
 
@@ -329,7 +330,7 @@ protected:
 
     if (next_iter == handlers_.end ())
     {
-    	HTTP_TRACE_NOTIFY ("cannot found compatible request handler");
+    	HTTP_TRACE_NOTIFY ("cannot find compatible request handler");
     	return make_error_code (error::no_suitable_request_handler);
     }
 
@@ -365,19 +366,23 @@ protected:
         error_handler_type, request_iterator, sock_smart_ptr
     > ( // 1. find/create the proper handler
 #if __cplusplus < 201103L
-#if 0
+#if 0 // С boost::bind и boost::function не работает boost::result_of
+		  // Было некогда разбираться, поэтому я сделал 
+		  // handle_parsed_request_accept_binder вместо них.
+		    
 		    // convert to function because boost::result_of has the problems 
 		    // with boost::bind return type.
 		    boost::function<error_code (error_handler_type, http::HttpMethod,
-		        uri::parts<request_iterator>, sock_smart_ptr, 
+		        http::url, headers_type, sock_smart_ptr, 
 		        typename handler_vec::const_iterator, error_code)> 
 		    (
           boost::bind<error_code> (
               &server::handle_parsed_request_accept, this
             , _1 // ResultF
             , _2 // HttpMethod
-            , _3 // uri::parts
-            , _4 // SmartSock
+            , _3 // http::url
+            , _4 // headers
+            , _5 // SmartSock
             , handlers_.begin ()
             , make_error_code (error::inappropriate_handler)
           )
@@ -387,8 +392,7 @@ protected:
 #endif
 #else
 				[this] (error_handler_type result_functor, 
-				    http::HttpMethod method, http::url parsed,
-            http::headers<boost::iterator_range<request_iterator> > headers,
+				    http::HttpMethod method, http::url parsed, headers_type headers,
 				    sock_smart_ptr sptr) -> error_code
 				{
 					return handle_parsed_request_accept (result_functor, method,

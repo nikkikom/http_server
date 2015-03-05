@@ -122,7 +122,8 @@ public:
 #if !defined (BOOST_RESULT_OF_USE_DECLTYPE)
 	template <class> struct result {};
 	template <class F, class OnError, class Iterator, class SmartSock> 
-	struct result<F (OnError,asio::yield_context,http::HttpMethod,http::url,http::headers<boost::iterator_range<Iterator> >,SmartSock)>
+	struct result<F (OnError, asio::yield_context, http::HttpMethod,
+	    http::url,http::headers<boost::iterator_range<Iterator> >,SmartSock)>
 	{ typedef sys::error_code type; };
 #endif
 

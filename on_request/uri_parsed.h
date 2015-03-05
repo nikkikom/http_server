@@ -19,7 +19,8 @@ namespace http {
 
 namespace detail {
 
-inline HttpMethod translate_method(const std::string& name)
+inline static HttpMethod 
+translate_method(const std::string& name)
 {
   if (boost::iequals(name, boost::as_literal("options")))
     return method::Options;
@@ -136,7 +137,7 @@ private:
       return;
     }
 
-    if ((method_ = translate_method(method)) == method::Unknown)
+    if (http::method::Unknown == (method_ = translate_method(method)))
     {
       // TODO: Handle http::error::unknown_method error.
       return;
@@ -189,7 +190,8 @@ public:
       Error, SmartSock, detail::final_call_tag
   )> {
   	typedef typename boost::result_of<_Handler (
-  	  Error, http::HttpMethod, uri::parts<Iterator>, SmartSock
+  	  Error, http::HttpMethod, http::url,
+  	  http::headers<boost::iterator_range<Iterator> >, SmartSock
   	)>::type type;
   };
 #endif

@@ -82,11 +82,7 @@ private:
 
 #if __cplusplus >= 201103L
 template <class Error, class Iterator, class SmartSock, class Handler>
-#if __cplusplus < 201300L
 detail::convert_on_request_to_coro<Handler>
-#else
-auto
-#endif
 on_request (Handler&& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
