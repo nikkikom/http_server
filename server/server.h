@@ -137,6 +137,15 @@ public:
     return *this;
   }
   
+  /// Set the initial connection timeout.
+  /**
+   * Sets the timeout between initial connect and starting receiving bytes 
+   * from the socket.
+   * 
+   * @param dur timeout duration value.
+   * 
+   * @return reference to the server instance.
+   */
   template <typename Rep, typename Period>
   server&
   set_init_timeout (chrono::duration<Rep,Period> const& dur)
@@ -145,6 +154,15 @@ public:
     return *this;
   }
   
+  /// Set the idle connection timeout.
+  /**
+   * Sets the timeout between the last request and starting receiving bytes
+   * from the socket.
+   *
+   * @param dur timeout duration value.
+   *
+   * @return reference to the server instance.
+   */
   template <typename Rep, typename Period>
   server&
   set_idle_timeout (chrono::duration<Rep,Period> const& dur)
@@ -153,6 +171,14 @@ public:
     return *this;
   }
   
+  /// Set the read connection timeout.
+  /**
+   * Sets the timeout between read calls.
+   *
+   * @param dur timeout duration value.
+   *
+   * @return reference to the server instance.
+   */
   template <typename Rep, typename Period>
   server&
   set_read_timeout (chrono::duration<Rep,Period> const& dur)
@@ -160,7 +186,16 @@ public:
     read_timeout_ = chrono::duration_cast<duration> (dur);
     return *this;
   }
-
+  
+  /// Set the write connection timeout.
+  /**
+   * Sets the timeout between write calls (usually not used and does not 
+   * make scense).
+   *
+   * @param dur timeout duration value.
+   *
+   * @return reference to the server instance.
+   */
   template <typename Rep, typename Period>
   server&
   set_write_timeout (chrono::duration<Rep,Period> const& dur)
@@ -169,7 +204,6 @@ public:
     return *this;
   }
   
-
 #if __cplusplus < 201103L
   template <typename ConnectHandler>
   server& 
