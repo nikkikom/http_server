@@ -141,7 +141,7 @@ public:
   server&
   set_init_timeout (chrono::duration<Rep,Period> const& dur)
   {
-    init_timeout_ = duration_cast<duration> (dur);
+    init_timeout_ = chrono::duration_cast<duration> (dur);
     return *this;
   }
   
@@ -149,7 +149,7 @@ public:
   server&
   set_idle_timeout (chrono::duration<Rep,Period> const& dur)
   {
-    idle_timeout_ = duration_cast<duration> (dur);
+    idle_timeout_ = chrono::duration_cast<duration> (dur);
     return *this;
   }
   
@@ -157,7 +157,7 @@ public:
   server&
   set_read_timeout (chrono::duration<Rep,Period> const& dur)
   {
-    read_timeout_ = duration_cast<duration> (dur);
+    read_timeout_ = chrono::duration_cast<duration> (dur);
     return *this;
   }
 
@@ -165,7 +165,7 @@ public:
   server&
   set_write_timeout (chrono::duration<Rep,Period> const& dur)
   {
-    write_timeout_ = duration_cast<duration> (dur);
+    write_timeout_ = chrono::duration_cast<duration> (dur);
     return *this;
   }
   
