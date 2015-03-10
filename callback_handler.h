@@ -8,8 +8,6 @@
 #include <boost/type_traits.hpp>
 #include <boost/range.hpp>
 
-
-
 #if __cplusplus < 201103L
 # include <boost/shared_ptr.hpp>
 #else
@@ -35,7 +33,8 @@ public:
 #endif
 
   template <typename Iterator, typename SmartSocket>
-  bool operator() (HttpMethod m, uri::parts<Iterator> parsed, SmartSocket sock) const
+  bool operator() (HttpMethod m, uri::parts<Iterator> parsed,
+                   SmartSocket sock) const
   {
 		return handler_ (m, parsed, sock);
   }

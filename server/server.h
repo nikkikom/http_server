@@ -136,6 +136,39 @@ public:
 
     return *this;
   }
+  
+  template <typename Rep, typename Period>
+  server&
+  set_init_timeout (chrono::duration<Rep,Period> const& dur)
+  {
+    init_timeout_ = duration_cast<duration> (dur);
+    return *this;
+  }
+  
+  template <typename Rep, typename Period>
+  server&
+  set_idle_timeout (chrono::duration<Rep,Period> const& dur)
+  {
+    idle_timeout_ = duration_cast<duration> (dur);
+    return *this;
+  }
+  
+  template <typename Rep, typename Period>
+  server&
+  set_read_timeout (chrono::duration<Rep,Period> const& dur)
+  {
+    read_timeout_ = duration_cast<duration> (dur);
+    return *this;
+  }
+
+  template <typename Rep, typename Period>
+  server&
+  set_write_timeout (chrono::duration<Rep,Period> const& dur)
+  {
+    write_timeout_ = duration_cast<duration> (dur);
+    return *this;
+  }
+  
 
 #if __cplusplus < 201103L
   template <typename ConnectHandler>
@@ -440,6 +473,11 @@ private:
 
   error_handler_type    on_error_handler_;
   connect_handler_type  on_connect_handler_;
+  
+  duration init_timeout_; // timeout after initial connect
+  duration idle_timeout_; // timeout between requests
+  duration read_timeout_; // current read timeout
+  duration write_timeout_; // current write timeout
 };
 
 
