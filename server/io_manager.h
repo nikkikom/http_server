@@ -81,7 +81,23 @@ public:
   void run ()
   {
   	HTTP_TRACE_ENTER_CLS();
-  	io_.run ();
+    
+    io_.run ();
+  }
+  
+  void run (std::size_t threads)
+  {
+    HTTP_TRACE_ENTER_CLS();
+    
+    boost::thread_group thrds;
+    
+    while (--threads > 0)
+      thrds.create_thread (
+        boost::bind (&asio::io_service::run, &io_)
+      );
+    
+    io_.run ();
+    thrds.join_all ();
   }
 
   socket_ptr create ()

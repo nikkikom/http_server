@@ -83,9 +83,17 @@ public:
   void run ()
   {
   	HTTP_TRACE_ENTER_CLS();
+    
   	manager_.run ();
   }
 
+  void run (std::size_t threads)
+  {
+    HTTP_TRACE_ENTER_CLS();
+    
+    manager_.run (threads);
+  }
+  
   server& set_keep_alive (...)
   {
   	HTTP_TRACE_ENTER_CLS();
@@ -372,13 +380,12 @@ protected:
       >::type
     >
   	{
-#if 1
-  		// Error should be bool (error_code, std::string)
+      // Error should be bool (error_code, std::string)
   		BOOST_STATIC_ASSERT_MSG (
   		  (boost::is_convertible<OnError, error_handler_type>::value &&
          ! detail::is_yield_context<OnError>::value),
   		      "Incompatible Error handler signature");
-#endif
+
   		typedef error_code type;
     };
 
