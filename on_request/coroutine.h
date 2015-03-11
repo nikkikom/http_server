@@ -69,8 +69,7 @@ public:
 
   	return detail::convert_callback_to_coro (
   	  boost::bind<result_type> (
-//  	      handler_, error_h, _1, method, cref (parsed), headers, sock
-   	      handler_, _1, method, cref (parsed), headers, sock
+   	      handler_, _1, method, cref (parsed), cref (headers), sock
   	  )
   	) (sock->get_io_service ());
   }
