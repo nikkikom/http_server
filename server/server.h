@@ -13,6 +13,7 @@
 
 #include <http_server/detail/no_pool.h>
 #include <http_server/detail/repeat_until.h>
+#include <http_server/detail/is_yield_context.h>
 
 #include <boost/noncopyable.hpp>
 
@@ -358,19 +359,26 @@ protected:
 #if __cplusplus < 201103L
   struct handle_parsed_request_accept_binder
   {
-  	template <class, class = void> struct result {};
-
+  	template <class, class=void> struct result {};
+    
   	template <class F, class OnError> struct result<F (
-  	    OnError, http::HttpMethod, http::url, headers_type, sock_smart_ptr
-  	  ),
-  	  typename boost::enable_if<
-  	    boost::is_convertible<OnError, error_handler_type>
-  	  >::type>
+  	      OnError, http::HttpMethod, http::url, headers_type, sock_smart_ptr
+        )
+  	  , typename boost::enable_if_c<
+              boost::is_convertible<OnError, error_handler_type>::value
+          // is_convertible<yield_context, boost::funciton...> always returns
+          // true ;-( This is workaround.
+          &&  ! detail::is_yield_context<OnError>::value
+      >::type
+    >
   	{
+#if 1
   		// Error should be bool (error_code, std::string)
   		BOOST_STATIC_ASSERT_MSG (
-  		  (boost::is_convertible<OnError, error_handler_type>::value),
+  		  (boost::is_convertible<OnError, error_handler_type>::value &&
+         ! detail::is_yield_context<OnError>::value),
   		      "Incompatible Error handler signature");
+#endif
   		typedef error_code type;
     };
 
@@ -386,8 +394,8 @@ protected:
 
     error_code 
     operator() (error_handler_type result_functor, 
-        http::HttpMethod method, http::url parsed,
-        headers_type headers, sock_smart_ptr sptr)
+        http::HttpMethod method, http::url const& parsed,
+        headers_type const& headers, sock_smart_ptr sptr)
     {
     	return that_->handle_parsed_request_accept (result_functor, method,
     	    parsed, headers, sptr, next_iter_, 
