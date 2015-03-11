@@ -253,7 +253,11 @@ on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
             Error, http::HttpMethod, http::url,
             http::headers<boost::iterator_range<Iterator> >, SmartSock
-    )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
+    )>::type, error_code>::value
+ && boost::is_same<typename boost::result_of<Error (
+      error_code, std::string
+    )>::type, bool>::value
+  , detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
   return detail::on_request_uri_parsed<Iterator, Handler> (handler);

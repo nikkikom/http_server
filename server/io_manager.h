@@ -33,6 +33,7 @@ struct io_asio_traits
 	typedef typename Socket::endpoint_type endpoint_type;
 	typedef typename Socket::protocol_type protocol_type;
 	typedef typename protocol_type::acceptor acceptor_type;
+  typedef typename protocol_type::resolver resolver_type;
 };
 
 template <
@@ -55,6 +56,7 @@ public:
   typedef typename traits_type::service_type service_type;
   typedef typename traits_type::endpoint_type endpoint_type;
   typedef typename traits_type::acceptor_type acceptor_type;
+  typedef typename traits_type::resolver_type resolver_type;
 
   io_manager (service_type& io) 
     : io_ (io)
@@ -127,6 +129,14 @@ public:
   	return ep_; 
   }
 #endif
+  
+  typename resolver_type::iterator
+  resolve (std::string const& host, std::string const& service)
+  {
+    typename resolver_type::query q (host, service);
+    resolver_type r (io_); // May need to put in in server class
+    return r.resolve (q);
+  }
 
   template <typename Handler>
 	void 

@@ -91,7 +91,34 @@ public:
 
   	return *this;
   }
+  
+  server&
+  listen_on (std::string const& host, std::string const& service)
+  {
+    HTTP_TRACE_ENTER_CLS();
+    
+    for (typename manager_type::resolve_iterator i = manager_.resolve (host, service);
+         i != manager_type::iterator (); ++i)
+    {
+      endpoint_type const& ep = i->endpoint ();
+      manager_.listen_on (host, service,
+  #if __cplusplus < 201103L
+        boost::protect (
+          boost::bind (&server::handle_accept, this, _1, ep, _2, _3)
+        )
+  #else
+        [this, ep]
+        (error_code const& ec, endpoint_type const& remote_ep, socket_ptr sock)
+        {
+          handle_accept (ec, ep, remote_ep, sock);
+        }
+  #endif
+      );
+    }
 
+    return *this;
+  }
+  
   server&
   listen_on (endpoint_type const& ep)
   {
@@ -113,7 +140,7 @@ public:
 
     return *this;
   }
-
+  
   // Start SSL/TLS acceptor
   server&
   listen_on (endpoint_type const& ep, tag::tls_t)
@@ -170,7 +197,8 @@ public:
     idle_timeout_ = chrono::duration_cast<duration> (dur);
     return *this;
   }
-  
+
+#if 0 // should be implemented by user?
   /// Set the read connection timeout.
   /**
    * Sets the timeout between read calls.
@@ -203,6 +231,7 @@ public:
     write_timeout_ = chrono::duration_cast<duration> (dur);
     return *this;
   }
+#endif
   
 #if __cplusplus < 201103L
   template <typename ConnectHandler>
@@ -329,16 +358,19 @@ protected:
 #if __cplusplus < 201103L
   struct handle_parsed_request_accept_binder
   {
-  	template <class> struct result {};
+  	template <class, class = void> struct result {};
 
-  	template <class F, class Error> struct result<F (Error,
-  	  http::HttpMethod, http::url, headers_type, sock_smart_ptr)>
+  	template <class F, class OnError> struct result<F (
+  	    OnError, http::HttpMethod, http::url, headers_type, sock_smart_ptr
+  	  ),
+  	  typename boost::enable_if<
+  	    boost::is_convertible<OnError, error_handler_type>
+  	  >::type>
   	{
   		// Error should be bool (error_code, std::string)
   		BOOST_STATIC_ASSERT_MSG (
-  		  (boost::is_convertible<Error, error_handler_type>::value),
+  		  (boost::is_convertible<OnError, error_handler_type>::value),
   		      "Incompatible Error handler signature");
-
   		typedef error_code type;
     };
 
@@ -510,8 +542,11 @@ private:
   
   duration init_timeout_; // timeout after initial connect
   duration idle_timeout_; // timeout between requests
+  
+#if 0 // should be implemented by user?
   duration read_timeout_; // current read timeout
   duration write_timeout_; // current write timeout
+#endif
 };
 
 

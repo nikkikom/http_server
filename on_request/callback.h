@@ -13,6 +13,7 @@
 
 namespace http {
 
+#if 0
 namespace detail {
 template <typename Handler>
 class on_request_callback_helper
@@ -28,13 +29,14 @@ public:
       http::headers<boost::iterator_range<Iterator> >, SmartSock
   )> {
     typedef typename boost::result_of<_Handler (
-      Error, asio::yield_context, http::HttpMethod, 
-      http::url, http::headers<boost::iterator_range<Iterator> >, SmartSock
+      asio::yield_context, http::HttpMethod, http::url, 
+      http::headers<boost::iterator_range<Iterator> >, SmartSock
     )>::type type;
   };
 #endif
-
 };
+}
+#endif
 
 #if __cplusplus >= 201103L
 template <class Error, class Iterator, class SmartSock, class Handler>
