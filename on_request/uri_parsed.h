@@ -237,7 +237,7 @@ private:
 template <class Error, class Iterator, class SmartSock, class Handler>
 detail::on_request_uri_parsed<Iterator, Handler>
 on_request (Handler&& handler, typename boost::enable_if_c<
-    ! boost::is_yield_context<Error>::value &&
+    ! detail::is_yield_context<Error>::value &&
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
             Error, http::HttpMethod, http::url,
