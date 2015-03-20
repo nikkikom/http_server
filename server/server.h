@@ -552,8 +552,8 @@ private:
   pool_type             pool_;
   handler_vec           handlers_;
 
-  error_handler_type    on_error_handler_;
   connect_handler_type  on_connect_handler_;
+  error_handler_type    on_error_handler_;
   
   duration init_timeout_; // timeout after initial connect
   duration idle_timeout_; // timeout between requests
