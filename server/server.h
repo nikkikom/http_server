@@ -42,16 +42,16 @@ public:
 	typedef boost::shared_ptr<socket_type> sock_smart_ptr;
 
   typedef typename manager_type::endpoint_type endpoint_type;
-
-private:
-  typedef typename error_handler<endpoint_type, sock_smart_ptr>::type 
-     error_handler_type;
-      
+     
   // typedef char const* request_iterator;
   typedef boost::asio::buffers_iterator<
       boost::asio::streambuf::const_buffers_type> request_iterator;
 
   typedef http::headers<boost::iterator_range<request_iterator> > headers_type;
+
+private:
+  typedef typename error_handler<endpoint_type, sock_smart_ptr>::type 
+     error_handler_type;
 
   // on request lower layer signature
 	typedef compat::function<error_code (
