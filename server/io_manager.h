@@ -10,7 +10,7 @@
 
 #include <boost/thread.hpp>
 #include <boost/utility/addressof.hpp>
-#include <boost/move/utility_core.hpp>
+#include <boost/move/utility.hpp>
 #include <boost/throw_exception.hpp>
 
 #include <boost/ptr_container/ptr_vector.hpp>
