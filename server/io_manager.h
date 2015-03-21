@@ -202,7 +202,7 @@ protected:
       )
 #else
 			[this,&acc,sock_ptr,ep,eptr,handler] (sys::error_code const& ec) {
-        handle_accept<Handler> (ec, acc, ep, eptr, sock_ptr, handler);
+        this->handle_accept<Handler> (ec, acc, ep, eptr, sock_ptr, handler);
       }
 #endif
     ); 
@@ -223,7 +223,7 @@ protected:
 
 #if __cplusplus >= 201103L
 #if 0 // delegate it to user code
-		auto _deleter = [this] (socket_ptr s) { destroy (s); };
+		auto _deleter = [this] (socket_ptr s) { this->destroy (s); };
 		std::unique_ptr<socket_type, decltype (_deleter)> s_guard (sock, _deleter);
 #endif
     std::unique_ptr<endpoint_type const> ep_guard (remote_ep);

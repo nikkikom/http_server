@@ -120,7 +120,7 @@ public:
         [this, ep]
         (error_code const& ec, endpoint_type const& remote_ep, socket_ptr sock)
         {
-          handle_accept (ec, ep, remote_ep, sock);
+          this->handle_accept (ec, ep, remote_ep, sock);
         }
   #endif
       );
@@ -143,7 +143,7 @@ public:
 			[this, ep] 
 			(error_code const& ec, endpoint_type const& remote_ep, socket_ptr sock)
 			{
-				handle_accept (ec, ep, remote_ep, sock);
+				this->handle_accept (ec, ep, remote_ep, sock);
       }
 #endif
     );
@@ -166,7 +166,7 @@ public:
 			[this, ep] 
 			(error_code const& ec, endpoint_type const& remote_ep, socket_ptr sock)
 			{
-				handle_accept (ec, ep, remote_ep, sock);
+				this->handle_accept (ec, ep, remote_ep, sock);
       }
 #endif
     );
@@ -504,7 +504,7 @@ protected:
 				    sock_smart_ptr sptr, error_handler_type result_functor)
           -> error_code
 				{
-					return handle_parsed_request_accept (method,
+					return this->handle_parsed_request_accept (method,
 					    parsed, headers, sptr, result_functor, handlers_.begin (),
 					    make_error_code (error::inappropriate_handler));
 				}
