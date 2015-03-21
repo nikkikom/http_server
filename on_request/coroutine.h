@@ -33,8 +33,8 @@ public:
   template <class> struct result {};
   template <class F, class Error, class Iterator, class SmartSock> 
   struct result<F (
-      Error, http::HttpMethod, http::url,
-      http::headers<boost::iterator_range<Iterator> >, SmartSock
+      http::HttpMethod, http::url,
+      http::headers<boost::iterator_range<Iterator> >, SmartSock, Error
   )> {
   	typedef typename boost::result_of<_Handler (
   	  asio::yield_context, http::HttpMethod, http::url, 
@@ -57,8 +57,9 @@ public:
     asio::yield_context, http::HttpMethod, http::url, 
     http::headers<boost::iterator_range<Iterator> >, SmartSock
   )>::type 
-  operator() (Error error_h, http::HttpMethod method, http::url const& parsed,
-    http::headers<boost::iterator_range<Iterator> > headers, SmartSock sock)
+  operator() (http::HttpMethod method, http::url const& parsed,
+    http::headers<boost::iterator_range<Iterator> > headers, SmartSock sock,
+    Error error_h)
   {
     typedef typename boost::result_of<_Handler (
       asio::yield_context, http::HttpMethod, http::url, 

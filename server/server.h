@@ -55,11 +55,12 @@ private:
 
   // on request lower layer signature
 	typedef compat::function<error_code (
-      error_handler_type
-    , http::HttpMethod
+      http::HttpMethod
     , yplatform::url
     , headers_type
     , sock_smart_ptr
+    , error_handler_type
+
     // , detail::final_call_tag
 	)> request_handler_type;
 
@@ -295,14 +296,15 @@ public:
 
   	handlers_.push_back (
       // do recursive 'on_request' calls until resulting handler signature 
-      // becomes 'error_code (error_handler, sock_smart_ptr)'. 
+      // becomes 'error_code (HttpMethod, url, headers, sock, error_handler)'.
       // All black magic is hidden inside detail/repeat_until.h but, 
       // believe me, you do not want to look at it.
       
-      detail::repeat_until<error_code (error_handler_type
-          , http::HttpMethod, http::url
+      detail::repeat_until<error_code (
+            http::HttpMethod, http::url
           , headers_type
           , sock_smart_ptr
+          , error_handler_type
           //, detail::final_call_tag
         )> 
       (
@@ -327,9 +329,10 @@ public:
       // All black magic is hidden inside detail/repeat_until.h but, 
       // believe me, you do not want to look at it.
       
-      detail::repeat_until<error_code (error_handler_type
-          , http::HttpMethod, yplatform::url, headers_type
+      detail::repeat_until<error_code (
+            http::HttpMethod, yplatform::url, headers_type
           , sock_smart_ptr
+          , error_handler_type
           //, detail::final_call_tag
         )> 
       (
@@ -367,23 +370,15 @@ protected:
 #if __cplusplus < 201103L
   struct handle_parsed_request_accept_binder
   {
-  	template <class, class=void> struct result {};
+  	template <class> struct result {};
     
   	template <class F, class OnError> struct result<F (
-  	      OnError, http::HttpMethod, http::url, headers_type, sock_smart_ptr
-        )
-  	  , typename boost::enable_if_c<
-              boost::is_convertible<OnError, error_handler_type>::value
-          // is_convertible<yield_context, boost::funciton...> always returns
-          // true ;-( This is workaround.
-          &&  ! detail::is_yield_context<OnError>::value
-      >::type
-    >
+  	      http::HttpMethod, http::url, headers_type, sock_smart_ptr, OnError
+    )>
   	{
       // Error should be bool (error_code, std::string)
   		BOOST_STATIC_ASSERT_MSG (
-  		  (boost::is_convertible<OnError, error_handler_type>::value &&
-         ! detail::is_yield_context<OnError>::value),
+  		  (boost::is_convertible<OnError, error_handler_type>::value),
   		      "Incompatible Error handler signature");
 
   		typedef error_code type;
@@ -400,21 +395,21 @@ protected:
     }
 
     error_code 
-    operator() (error_handler_type result_functor, 
-        http::HttpMethod method, http::url const& parsed,
-        headers_type const& headers, sock_smart_ptr sptr)
+    operator() (http::HttpMethod method, http::url const& parsed,
+        headers_type const& headers, sock_smart_ptr sptr,
+        error_handler_type result_functor)
     {
-    	return that_->handle_parsed_request_accept (result_functor, method,
-    	    parsed, headers, sptr, next_iter_, 
-    	    make_error_code (error::inappropriate_handler));
+    	return that_->handle_parsed_request_accept (method, parsed, headers, sptr,
+          result_functor,
+          next_iter_, make_error_code (error::inappropriate_handler));
     }
   };
 #endif
 
   error_code
-  handle_parsed_request_accept (error_handler_type result_handler,
-    http::HttpMethod method, http::url parsed,
+  handle_parsed_request_accept (http::HttpMethod method, http::url parsed,
     headers_type headers, sock_smart_ptr sptr,
+    error_handler_type result_handler,
     typename handler_vec::const_iterator next_iter, error_code ec)
   {
   	HTTP_TRACE_ENTER_CLS();
@@ -425,12 +420,11 @@ protected:
     	request_handler_type& user_handler = *next_iter++;
 
     	ec = user_handler (
-// #if __cplusplus < 201300L
+        method, parsed, headers, sptr,
 			  boost::bind (&server::handle_parsed_request_accept, this,
-			    result_handler, method, parsed, headers, sptr, next_iter, _1),
-// #else // lambda
-// #endif
-        method, parsed, headers, sptr // , detail::final_call_tag ()
+			    method, parsed, headers, sptr, result_handler, next_iter, _1)
+        // , detail::final_call_tag ()
+
       );
 
       if (ec != make_error_code (error::inappropriate_handler))
@@ -492,11 +486,12 @@ protected:
 		    (
           boost::bind<error_code> (
               &server::handle_parsed_request_accept, this
-            , _1 // ResultF
-            , _2 // HttpMethod
-            , _3 // http::url
-            , _4 // headers
-            , _5 // SmartSock
+              _1 // HttpMethod
+            , _2 // http::url
+            , _3 // headers
+            , _4 // SmartSock
+            , _5 // ResultF
+
             , handlers_.begin ()
             , make_error_code (error::inappropriate_handler)
           )
@@ -505,20 +500,20 @@ protected:
 				handle_parsed_request_accept_binder (this, handlers_.begin ())
 #endif
 #else
-				[this] (error_handler_type result_functor, 
-				    http::HttpMethod method, http::url parsed, headers_type headers,
-				    sock_smart_ptr sptr) -> error_code
+				[this] (http::HttpMethod method, http::url parsed, headers_type headers,
+				    sock_smart_ptr sptr, error_handler_type result_functor)
+          -> error_code
 				{
-					return handle_parsed_request_accept (result_functor, method,
-					    parsed, headers, sptr, handlers_.begin (), 
+					return handle_parsed_request_accept (method,
+					    parsed, headers, sptr, result_functor, handlers_.begin (),
 					    make_error_code (error::inappropriate_handler));
 				}
 #endif
     )
       // 2. call the handler
     (
-      boost::bind<bool> (&server::on_error_default, _1, _2),
       sptr,
+      boost::bind<bool> (&server::on_error_default, _1, _2),
       detail::final_call_tag ()
     );
 

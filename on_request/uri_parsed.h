@@ -165,7 +165,7 @@ private:
       headers);
     buffers_->consume(sz);
 
-    handler_(error_handler_, method_, url_, headers, socket_);
+    handler_(method_, url_, headers, socket_, error_handler_);
   }
 
   SmartSocket socket_;
@@ -188,11 +188,11 @@ public:
 
   template <class F, class Error, class SmartSock>
   struct result<F (
-      Error, SmartSock, detail::final_call_tag
+      SmartSock, Error, detail::final_call_tag
   )> {
   	typedef typename boost::result_of<_Handler (
-  	  Error, http::HttpMethod, http::url,
-  	  http::headers<boost::iterator_range<Iterator> >, SmartSock
+  	  http::HttpMethod, http::url,
+  	  http::headers<boost::iterator_range<Iterator> >, SmartSock, Error
   	)>::type type;
   };
 #endif
@@ -208,16 +208,16 @@ public:
   // FIXME: move error handler on c++11
 	template <class Error, class SmartSock>
 	typename boost::result_of<_Handler (
-	  Error, http::HttpMethod, http::url,
-    http::headers<boost::iterator_range<Iterator> >, SmartSock
+	  http::HttpMethod, http::url,
+    http::headers<boost::iterator_range<Iterator> >, SmartSock, Error
 	)>::type
-	operator() (Error error_h, SmartSock sock, detail::final_call_tag)
+	operator() (SmartSock sock, Error error_h, detail::final_call_tag)
 	{
     HTTP_TRACE_ENTER_CLS();
 
 		typedef typename 
 		  boost::result_of<on_request_uri_parsed (
-		      Error, SmartSock, detail::final_call_tag)>::type result_type;
+		      SmartSock, Error, detail::final_call_tag)>::type result_type;
 
     read_request_op<SmartSock, _Handler, Error>(sock, handler_, error_h)();
 
@@ -231,17 +231,16 @@ private:
   _Handler handler_;
 };
 
-}
+} // namespace detail
 
 #if __cplusplus >= 201103L
 template <class Error, class Iterator, class SmartSock, class Handler>
 detail::on_request_uri_parsed<Iterator, Handler>
 on_request (Handler&& handler, typename boost::enable_if_c<
-    ! detail::is_yield_context<Error>::value &&
     boost::is_same<typename boost::result_of<
       typename boost::decay<Handler>::type (
-            Error, http::HttpMethod, http::url,
-            http::headers<boost::iterator_range<Iterator> >, SmartSock
+            http::HttpMethod, http::url,
+            http::headers<boost::iterator_range<Iterator> >, SmartSock, Error
     )>::type, error_code>::value, detail::enabler>::type = detail::enabler ())
 {
 	HTTP_TRACE_ENTER ();
@@ -253,8 +252,8 @@ template <class Error, class Iterator, class SmartSock, class Handler>
 detail::on_request_uri_parsed<Iterator, Handler> 
 on_request (Handler const& handler, typename boost::enable_if_c<
     boost::is_same<typename boost::result_of<Handler (
-            Error, http::HttpMethod, http::url,
-            http::headers<boost::iterator_range<Iterator> >, SmartSock
+            http::HttpMethod, http::url,
+            http::headers<boost::iterator_range<Iterator> >, SmartSock, Error
     )>::type, error_code>::value
  && boost::is_same<typename boost::result_of<Error (
       error_code, std::string
@@ -272,8 +271,8 @@ namespace traits {
 template <class Error, class Iterator, class SmartSock, class Handler>
 struct on_request<Error, Iterator, SmartSock, Handler, 
   typename boost::enable_if<boost::is_same<typename boost::result_of<Handler (
-    Error, http::HttpMethod, http::url,
-    http::headers<boost::iterator_range<Iterator> >, SmartSock
+    http::HttpMethod, http::url,
+    http::headers<boost::iterator_range<Iterator> >, SmartSock, Error
   )>::type, error_code> >::type>
 {
 	typedef detail::on_request_uri_parsed<Iterator, Handler> type;
